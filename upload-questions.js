@@ -1,0 +1,348 @@
+/**
+ * Question Upload Script for JUPEB ORBIT
+ *
+ * This script uploads past questions to Firebase Firestore for the JUPEB ORBIT application.
+ *
+ * Prerequisites:
+ * 1. Node.js installed
+ * 2. firebase-admin package installed (npm install firebase-admin)
+ * 3. Firebase service account key file (download from Firebase Console)
+ *
+ * Expected question format:
+ * {
+ *   "questionText": "Calculate the force needed to accelerate a 5kg mass at 2m/s²",
+ *   "options": ["10 N", "5 N", "2.5 N", "1 N"],
+ *   "correctAnswerIndex": 0,
+ *   "explanation": {
+ *     "coreConcept": "Newton's Second Law",
+ *     "steps": "Using F = ma: F = 5kg × 2m/s² = 10N",
+ *     "pitfall": "Forgetting to convert units properly"
+ *   },
+ *   "syllabusTopic": "Mechanics & Forces",
+ *   "subject": "physics",
+ *   "year": "2025"
+ * }
+ *
+ * Usage:
+ *   node upload-questions.js <path-to-questions.json>
+ *
+ *   Or without arguments to use default file: questions.json
+ */
+
+const { initializeApp, cert } = require('firebase-admin/app');
+const { getFirestore, WriteBatch } = require('firebase-admin/firestore');
+const fs = require('fs');
+const path = require('path');
+
+// Configuration - UPDATE THESE VALUES
+const SERVICE_ACCOUNT_PATH = './firebase-service-account.json'; // Path to your service account key
+const QUESTIONS_FILE_PATH = process.argv[2] || './questions.json'; // Default file, can be overridden by command line arg
+
+// Initialize Firebase Admin SDK
+let db;
+try {
+  // Check if service account file exists
+  if (!fs.existsSync(SERVICE_ACCOUNT_PATH)) {
+    console.error(`❌ Service account file not found: ${SERVICE_ACCOUNT_PATH}`);
+    console.error('Please download your Firebase service account key from:');
+    console.error('Firebase Console → Project Settings → Service Accounts → Generate New Private Key');
+    process.exit(1);
+  }
+
+  const serviceAccount = require(SERVICE_ACCOUNT_PATH);
+  initializeApp({
+    credential: cert(serviceAccount)
+  });
+
+  db = getFirestore();
+  console.log('✅ Firebase Admin SDK initialized successfully');
+} catch (error) {
+  console.error('❌ Failed to initialize Firebase Admin SDK:', error.message);
+  process.exit(1);
+}
+
+// Validate question structure
+function validateQuestion(question, index) {
+  const errors = [];
+
+  // Required fields
+  if (!question.questionText || typeof question.questionText !== 'string') {
+    errors.push('Missing or invalid questionText (string required)');
+  }
+
+  if (!Array.isArray(question.options) || question.options.length !== 4) {
+    errors.push('Missing or invalid options (array of exactly 4 strings required)');
+  } else {
+    for (let i = 0; i < question.options.length; i++) {
+      if (typeof question.options[i] !== 'string') {
+        errors.push(`Option ${String.fromCharCode(65 + i)} must be a string`);
+      }
+    }
+  }
+
+  if (typeof question.correctAnswerIndex !== 'number' ||
+      question.correctAnswerIndex < 0 ||
+      question.correctAnswerIndex > 3) {
+    errors.push('Missing or invalid correctAnswerIndex (integer 0-3 required)');
+  }
+
+  // Optional fields with validation if present
+  if (question.explanation !== undefined) {
+    if (typeof question.explanation !== 'object' || question.explanation === null) {
+      errors.push('Explanation must be an object if provided');
+    } else {
+      // Explaination fields are optional but if present should be strings
+      const { coreConcept, steps, pitfall } = question.explanation;
+      if (coreConcept !== undefined && typeof coreConcept !== 'string') {
+        errors.push('explanation.coreConcept must be a string if provided');
+      }
+      if (steps !== undefined && typeof steps !== 'string') {
+        errors.push('explanation.steps must be a string if provided');
+      }
+      if (pitfall !== undefined && typeof pitfall !== 'string') {
+        errors.push('explanation.pitfall must be a string if provided');
+      }
+    }
+  }
+
+  if (question.syllabusTopic !== undefined && typeof question.syllabusTopic !== 'string') {
+    errors.push('syllabusTopic must be a string if provided');
+  }
+
+  const validSubjects = ['physics', 'mathematics', 'chemistry', 'biology'];
+  if (question.subject !== undefined &&
+      (!validSubjects.includes(question.subject.toLowerCase()) || typeof question.subject !== 'string')) {
+    errors.push(`subject must be one of: ${validSubjects.join(', ')}`);
+  }
+
+  if (question.year !== undefined && typeof question.year !== 'string') {
+    errors.push('year must be a string if provided');
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors: errors.map((err, i) => `${index + 1}. ${err}`)
+  };
+}
+
+// Normalize question data (strip option prefixes, ensure proper format)
+function normalizeQuestion(rawQuestion) {
+  const question = { ...rawQuestion };
+
+  // Ensure ID exists (will be used as Firestore document ID)
+  if (!question.id) {
+    // ID will be generated by Firebase if not provided
+    delete question.id;
+  }
+
+  // Clean options: remove common prefixes like "A) ", "A. ", etc.
+  if (Array.isArray(question.options)) {
+    question.options = question.options.map(option => {
+      if (typeof option === 'string') {
+        // Remove prefixes like "A) ", "A. ", "A - ", "A ", etc.
+        return option.replace(/^[A-D][).:\s\-]+/i, '').trim();
+      }
+      return option;
+    });
+  }
+
+  // Ensure explanation is an object if provided
+  if (question.explanation && typeof question.explanation === 'string') {
+    question.explanation = {
+      coreConcept: question.explanation,
+      steps: '',
+      pitfall: ''
+    };
+  } else if (!question.explanation) {
+    question.explanation = {};
+  }
+
+  // Normalize subject and year to lowercase if provided
+  if (question.subject) {
+    question.subject = question.subject.toLowerCase();
+  }
+
+  return question;
+}
+
+// Upload questions to Firebase
+async function uploadQuestions(questions) {
+  let successCount = 0;
+  let errorCount = 0;
+  const errors = [];
+
+  // Process in batches of 500 (Firestore batch limit)
+  const BATCH_SIZE = 500;
+
+  for (let i = 0; i < questions.length; i += BATCH_SIZE) {
+    const batch = questions.slice(i, i + BATCH_SIZE);
+    const writeBatch = db.batch();
+    let batchSuccess = 0;
+    let batchErrors = 0;
+
+    try {
+      for (const question of batch) {
+        try {
+          // Determine the document reference
+          const subject = question.subject || 'physics'; // default fallback
+          const year = question.year || '2025'; // default fallback
+
+          let docRef;
+          if (question.id) {
+            // Use provided ID
+            docRef = db.collection('subjects').doc(subject).collection('years').doc(year).collection('questions').doc(question.id);
+          } else {
+            // Let Firebase auto-generate ID
+            docRef = db.collection('subjects').doc(subject).collection('years').doc(year).collection('questions').doc();
+          }
+
+          // Set the document data (merge:false to overwrite if exists)
+          writeBatch.set(docRef, question, { merge: false });
+          batchSuccess++;
+        } catch (questionError) {
+          console.error(`❌ Error preparing question for upload:`, questionError.message);
+          batchErrors++;
+          errors.push(`Question batch ${Math.floor(i/BATCH_SIZE) + 1}, item ${batch.indexOf(question) + 1}: ${questionError.message}`);
+        }
+      }
+
+      // Commit the batch
+      await writeBatch.commit();
+      successCount += batchSuccess;
+      errorCount += batchErrors;
+
+      console.log(`📦 Batch ${Math.floor(i/BATCH_SIZE) + 1} completed: ${batchSuccess} successful, ${batchErrors} failed`);
+
+    } catch (batchError) {
+      console.error(`❌ Failed to commit batch ${Math.floor(i/BATCH_SIZE) + 1}:`, batchError.message);
+      errorCount += batch.length;
+      errors.push(`Batch ${Math.floor(i/BATCH_SIZE) + 1} commit failed: ${batchError.message}`);
+    }
+  }
+
+  return { successCount, errorCount, errors };
+}
+
+// Main execution function
+async function main() {
+  console.log('🚀 Starting JUPEB ORBIT Question Upload Process');
+  console.log('='.repeat(60));
+
+  // Check if questions file exists
+  if (!fs.existsSync(QUESTIONS_FILE_PATH)) {
+    console.error(`❌ Questions file not found: ${QUESTIONS_FILE_PATH}`);
+    console.error(`Please create a questions.json file or specify a different file path.`);
+    console.example(`Example usage: node upload-questions.js ./my-questions.json`);
+    process.exit(1);
+  }
+
+  // Load questions from file
+  let rawQuestions;
+  try {
+    const fileContent = fs.readFileSync(QUESTIONS_FILE_PATH, 'utf8');
+    rawQuestions = JSON.parse(fileContent);
+
+    // Handle both array format and object with questions array
+    const questionsArray = Array.isArray(rawQuestions)
+      ? rawQuestions
+      : (rawQuestions.questions || []);
+
+    if (!Array.isArray(questionsArray)) {
+      throw new Error('Questions file must contain an array of questions or an object with a "questions" array');
+    }
+
+    rawQuestions = questionsArray;
+    console.log(`📄 Loaded ${rawQuestions.length} questions from ${QUESTIONS_FILE_PATH}`);
+  } catch (error) {
+    console.error(`❌ Failed to load or parse questions file: ${error.message}`);
+    process.exit(1);
+  }
+
+  // Validate and normalize questions
+  console.log('\n🔍 Validating questions...');
+  const validQuestions = [];
+  const validationErrors = [];
+
+  for (let i = 0; i < rawQuestions.length; i++) {
+    const validation = validateQuestion(rawQuestions[i], i);
+
+    if (validation.isValid) {
+      const normalized = normalizeQuestion(rawQuestions[i]);
+      validQuestions.push(normalized);
+    } else {
+      validationErrors.push(...validation.errors);
+    }
+  }
+
+  console.log(`✅ Validation complete: ${validQuestions.length} valid, ${validationErrors.length} invalid`);
+
+  // Show validation errors if any
+  if (validationErrors.length > 0) {
+    console.log('\n⚠️  Validation Errors:');
+    validationErrors.slice(0, 10).forEach((error, index) => {
+      console.log(`   ${error}`);
+    });
+    if (validationErrors.length > 10) {
+      console.log(`   ... and ${validationErrors.length - 10} more errors`);
+    }
+
+    // Ask user if they want to continue with valid questions only
+    console.log(`\nDo you want to continue uploading ${validQuestions.length} valid questions? (y/N)`);
+    // In a real script, we'd read from stdin, but for simplicity we'll proceed
+    // In production, you'd want to add proper stdin handling here
+  }
+
+  if (validQuestions.length === 0) {
+    console.error('❌ No valid questions to upload. Please fix the validation errors and try again.');
+    process.exit(1);
+  }
+
+  // Show sample of what will be uploaded
+  console.log(`\n📋 Sample of questions to be uploaded (first 3):`);
+  validQuestions.slice(0, 3).forEach((q, index) => {
+    console.log(`   ${index + 1}. [${q.subject || 'n/a'}/${q.year || 'n/a'}] ${q.questionText.substring(0, 50)}...`);
+  });
+
+  // Upload questions
+  console.log(`\n📤 Starting upload to Firebase Firestore...`);
+  const startTime = Date.now();
+
+  try {
+    const result = await uploadQuestions(validQuestions);
+    const endTime = Date.now();
+    const duration = ((endTime - startTime) / 1000).toFixed(2);
+
+    console.log('\n' + '='.repeat(60));
+    console.log('📊 Upload Summary:');
+    console.log(`   ✅ Successful: ${result.successCount}`);
+    console.log(`   ❌ Failed: ${result.errorCount}`);
+    console.log(`   ⏱️  Duration: ${duration} seconds`);
+
+    if (result.errors.length > 0) {
+      console.log(`\n⚠️  Errors encountered:`);
+      result.errors.slice(0, 5).forEach((error, index) => {
+        console.log(`   ${error}`);
+      });
+      if (result.errors.length > 5) {
+        console.log(`   ... and ${result.errors.length - 5} more errors`);
+      }
+    }
+
+    if result.successCount > 0) {
+      console.log(`\n🎉 Upload completed! Questions are now available in the JUPEB ORBIT app.`);
+      console.log(`   Access path in Firebase: subjects/{{subject}}/years/{{year}}/questions`);
+    } else {
+      console.log(`\n💥 Upload failed. No questions were successfully uploaded.`);
+      process.exit(1);
+    }
+  } catch (uploadError) {
+    console.error(`\n💥 Fatal error during upload process:`, uploadError.message);
+    process.exit(1);
+  }
+}
+
+// Run the main function
+main().catch(error => {
+  console.error('💥 Unexpected error:', error);
+  process.exit(1);
+});

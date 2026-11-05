@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JUPEB Orbit | The Digital Standard for Direct Entry</title>
+    <link rel="icon" type="image/png" href="/logo.png">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#4F46E5">
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="theme.js"></script>
+    <script src="orbit-tools.js"></script>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f4ff',
+                            100: '#e0e9fe',
+                            200: '#c1d3fe',
+                            300: '#92b3fd',
+                            400: '#5c89fa',
+                            500: '#345df6',
+                            600: '#2546eb', // Primary
+                            700: '#1d35d8',
+                            800: '#1e2eaf',
+                            900: '#1e2c8a',
+                            950: '#121a52',
+                        },
+                        accent: {
+                            500: '#8b5cf6',
+                            600: '#7c3aed',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['Bricolage Grotesque', 'sans-serif'],
+                    },
+                    boxShadow: {
+                        'glass': '0 8px 32px 0 rgba(31, 38, 135, 0.07)',
+                        'premium': '0 20px 50px -12px rgba(0, 0, 0, 0.08)',
+                        'inner-glass': 'inset 0 1px 1px 0 rgba(255, 255, 255, 0.4)',
+                    },
+                    animation: {
+                        'float': 'float 6s ease-in-out infinite',
+                        'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'slide-up': 'slideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+                    },
+                    keyframes: {
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-20px)' },
+                        },
+                        slideUp: {
+                            '0%': { opacity: '0', transform: 'translateY(20px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { 
+            font-family: 'Inter', sans-serif; 
+        }
+        .glass {
+            background: rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+        }
+        .dark .glass {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(30, 41, 59, 0.8);
+        }
+        .text-gradient {
+            background: linear-gradient(135deg, #1e2c8a 0%, #2546eb 50%, #7c3aed 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .dark .text-gradient {
+            background: linear-gradient(135deg, #93c5fd 0%, #60a5fa 50%, #c084fc 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .math-typeset { font-family: 'Times New Roman', Times, serif; }
+        .grid-pattern {
+            background-image: radial-gradient(#e5e7eb 1.5px, transparent 1.5px);
+            background-size: 48px 48px;
+        }
+        .dark .grid-pattern {
+            background-image: radial-gradient(rgba(148, 163, 184, 0.15) 1.5px, transparent 1.5px);
+            background-size: 48px 48px;
+        }
+        .pro-shadow {
+            box-shadow: 0 0 0 1px rgba(0,0,0,0.03), 0 2px 4px rgba(0,0,0,0.02), 0 12px 24px rgba(0,0,0,0.03);
+        }
+        .dark .pro-shadow {
+            box-shadow: 0 0 0 1px rgba(255,255,255,0.05), 0 4px 12px rgba(0,0,0,0.4);
+        }
+    </style>
+</head>
+<body class="text-slate-800 antialiased overflow-x-hidden bg-[#FAFBFF] dark:bg-slate-950 dark:text-slate-300">
+
+    <!-- 1. NAVIGATION HEADER -->
+    <header class="fixed top-6 left-1/2 -translate-x-1/2 w-[92%] max-w-7xl h-20 glass rounded-[2rem] z-50 flex items-center px-8 shadow-premium transition-all duration-300 border border-white/40" id="main-nav">
+        <div class="w-full flex justify-between items-center">
+            <!-- Logo -->
+            <a href="index.html" class="flex items-center gap-3 group cursor-pointer relative z-[60]">
+                <div class="w-10 h-10 bg-white rounded-2xl flex items-center justify-center transform group-hover:rotate-[15deg] transition-all duration-300 shadow-lg shadow-slate-100 overflow-hidden">
+                    <img src="logo.png" alt="Logo" class="w-full h-full object-contain">
+                </div>
+            </a>
+
+            <!-- Nav Links (Desktop) -->
+            <nav class="hidden lg:flex items-center gap-12">
+                <a href="#simulator" class="text-xs font-black uppercase tracking-widest text-slate-500 hover:text-brand-600 transition-colors">Simulator</a>
+                <a href="#features" class="text-xs font-black uppercase tracking-widest text-slate-500 hover:text-brand-600 transition-colors">Advantages</a>
+                <a href="#analytics" class="text-xs font-black uppercase tracking-widest text-slate-500 hover:text-brand-600 transition-colors">Analytics</a>
+            </nav>
+
+            <!-- Nav Container -->
+            <div class="flex items-center gap-6 relative z-[60] justify-end flex-grow">
+                <!-- Dark Mode Toggle Button -->
+            <button onclick="toggleTheme()" class="w-10 h-10 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:border-brand-300 dark:hover:border-brand-500 shadow-sm transition-all active:scale-95 mr-2" title="Toggle Theme" aria-label="Toggle Theme">
+                <span data-theme-icon class="flex items-center justify-center"></span>
+            </button>
+            <!-- Profile Dropdown -->
+                <div class="relative group">
+                    <button onclick="toggleDropdown()" class="flex items-center gap-3 focus:outline-none bg-white p-1 pr-3 rounded-2xl border border-slate-100 shadow-sm hover:border-brand-200 transition-all">
+                        <div class="w-9 h-9 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center font-bold text-slate-500 overflow-hidden">
+                            <img id="nav-user-avatar" src="https://api.dicebear.com/7.x/avataaars/svg?seed=user" alt="Profile" class="w-full h-full object-cover">
+                        </div>
+                        <div class="hidden md:flex flex-col text-left">
+                            <span id="nav-user-name" class="text-xs font-black text-slate-900 leading-none">--</span>
+                            <span id="nav-user-tagline" class="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-1">Candidate</span>
+                        </div>
+                        <svg class="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    
+                    <div id="profile-dropdown" class="hidden absolute right-0 mt-3 w-60 bg-white rounded-[2rem] shadow-2xl border border-slate-100 py-3 z-[100] animate-in fade-in slide-in-from-top-2">
+                        <!-- Navigation Links -->
+                        <div class="px-4 py-2 border-b border-slate-50 mb-1">
+                            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Navigation</p>
+                            <a href="dashboard.html" class="block py-2 text-sm font-bold text-slate-600 hover:text-brand-600">Dashboard</a>
+                            <a href="practice.html" class="block py-2 text-sm font-bold text-slate-600 hover:text-brand-600">Practice Hub</a>
+                            <a href="quiz.html" class="block py-2 text-sm font-bold text-slate-600 hover:text-brand-600">Daily Quiz</a>
+                            <a href="exam.html" class="block py-2 text-sm font-bold text-slate-600 hover:text-brand-600">Exam Simulator</a>
+                            <a href="history.html" class="block py-2 text-sm font-bold text-slate-600 hover:text-brand-600">Performance</a>
+                        </div>
+                        <a href="profile.html" class="flex items-center gap-3 px-5 py-3 text-xs font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 hover:text-brand-600 transition-all">Settings</a>
+                        <button onclick="handleLogout()" class="flex items-center gap-3 px-5 py-3 text-xs font-black uppercase tracking-widest text-rose-500 hover:bg-rose-50 w-full text-left transition-all">Logout Session</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- 2. HERO SECTION -->
+    <section class="relative pt-32 sm:pt-48 pb-20 sm:pb-32 px-6 overflow-hidden">
+        <div class="grid-pattern absolute inset-0 opacity-[0.15] [mask-image:radial-gradient(ellipse_at_center,black_70%,transparent_100%)]"></div>
+        
+        <!-- Animated Background Orbs -->
+        <div class="absolute top-1/4 left-1/4 w-96 h-96 bg-brand-200/20 rounded-full blur-[120px] animate-float"></div>
+        <div class="absolute bottom-1/4 right-1/4 w-96 h-96 bg-accent-200/20 rounded-full blur-[120px] animate-float" style="animation-delay: -3s"></div>
+
+        <div class="container mx-auto text-center relative z-10">
+            <div class="inline-flex items-center gap-2 px-4 py-2 bg-white/50 backdrop-blur-md border border-brand-100 rounded-full text-[10px] sm:text-[11px] font-black text-brand-600 uppercase tracking-[0.2em] mb-10 shadow-sm animate-slide-up">
+                <span class="flex h-2 w-2 rounded-full bg-brand-600 animate-pulse"></span>
+                The 2026/27 JUPEB Standard
+            </div>
+            
+            <h1 class="font-display text-5xl sm:text-7xl md:text-8xl font-extrabold text-slate-900 tracking-tight max-w-5xl mx-auto leading-[0.95] mb-10 animate-slide-up" style="animation-delay: 0.1s">
+                Master JUPEB with <br class="hidden sm:block"/><span class="text-gradient">Precision</span> & Clarity.
+            </h1>
+            
+            <p class="text-lg sm:text-xl md:text-2xl text-slate-500 max-w-3xl mx-auto leading-relaxed mb-14 animate-slide-up" style="animation-delay: 0.2s">
+                Ditch the outdated PDFs. Experience high-fidelity simulators, AI-driven feedback, and real-time aggregate forecasting designed for top-tier candidates.
+            </p>
+            
+            <div class="flex flex-col sm:flex-row items-center justify-center gap-5 animate-slide-up" style="animation-delay: 0.3s">
+                <a href="auth.html" class="w-full sm:w-auto bg-brand-600 hover:bg-brand-700 text-white rounded-2xl px-12 py-6 text-lg font-black shadow-2xl shadow-brand-200/50 transition-all hover:-translate-y-1 active:scale-95 group">
+                    Begin Your Roadmap
+                    <svg class="inline-block ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 7l5 5m0 0l-5 5m5-5H6"></path></svg>
+                </a>
+                <a href="#simulator" class="w-full sm:w-auto bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-2xl px-12 py-6 text-lg font-bold transition-all hover:border-brand-200 active:scale-95">
+                    Live Demo
+                </a>
+            </div>
+
+            <!-- Social Proof -->
+            <div class="mt-24 flex flex-col items-center gap-8 animate-slide-up" style="animation-delay: 0.4s">
+                <p class="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Empowering candidates across</p>
+                <div class="flex flex-wrap justify-center gap-x-12 gap-y-6 opacity-30 grayscale hover:grayscale-0 transition-all duration-700">
+                    <span class="font-display text-2xl font-black tracking-tighter">UNILAG</span>
+                    <span class="font-display text-2xl font-black tracking-tighter">UNIBADAN</span>
+                    <span class="font-display text-2xl font-black tracking-tighter">UNILORIN</span>
+                    <span class="font-display text-2xl font-black tracking-tighter">OAU IFÉ</span>
+                    <span class="font-display text-2xl font-black tracking-tighter">UNIBEN</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 3. INTERACTIVE SIMULATOR PREVIEW -->
+    <section id="simulator" class="py-24 px-6 relative bg-slate-50/50">
+        <div class="container mx-auto">
+            <div class="max-w-6xl mx-auto">
+                <div class="text-center mb-16">
+                    <h2 class="font-display text-3xl md:text-5xl font-extrabold text-slate-900 mb-4 tracking-tight">Experience High-Fidelity.</h2>
+                    <p class="text-slate-500 text-lg max-w-2xl mx-auto font-medium">The closest you can get to the real JUPEB computer-based test environment.</p>
+                </div>
+
+                <div class="relative group">
+                    <!-- Glow effect -->
+                    <div class="absolute -inset-4 bg-gradient-to-r from-brand-500/20 to-accent-600/20 rounded-[3rem] opacity-20 blur-3xl group-hover:opacity-30 transition duration-1000"></div>
+                    
+                    <div class="relative bg-white rounded-[2.5rem] border border-slate-200 shadow-premium overflow-hidden flex flex-col lg:flex-row min-h-[680px]">
+                        <!-- Left Panel: The Question Engine -->
+                        <div class="w-full lg:w-[60%] border-r border-slate-100 p-8 md:p-14 overflow-y-auto bg-white">
+                            <div class="flex items-center justify-between mb-12">
+                                <div class="flex items-center gap-4">
+                                    <div class="px-4 py-1.5 bg-brand-50 text-brand-600 text-[10px] font-black rounded-full uppercase tracking-widest border border-brand-100">Physics • Module 02</div>
+                                    <span class="text-slate-400 text-[10px] font-black uppercase tracking-widest">Question 42 of 50</span>
+                                </div>
+                                <div class="flex gap-2">
+                                    <div class="w-2.5 h-2.5 rounded-full bg-slate-100"></div>
+                                    <div class="w-2.5 h-2.5 rounded-full bg-slate-100"></div>
+                                    <div class="w-2.5 h-2.5 rounded-full bg-brand-600 shadow-lg shadow-brand-200"></div>
+                                </div>
+                            </div>
+
+                            <h3 class="text-2xl md:text-4xl font-bold text-slate-900 leading-[1.2] mb-12 math-typeset">
+                                A particle of mass <span class="italic">m</span> moves in a horizontal circle of radius <span class="italic">r</span> with a constant speed <span class="italic">v</span>. Which of the following represents the centripetal acceleration?
+                            </h3>
+
+                            <div class="space-y-5">
+                                <button id="teaser-opt-a" onclick="checkTeaserOption('A')" class="w-full flex items-center p-6 border-2 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-3xl hover:border-brand-200 hover:bg-brand-50/30 transition-all duration-300 transform hover:scale-[1.01] group/btn">
+                                    <span class="w-10 h-10 rounded-xl border border-slate-200 flex items-center justify-center text-xs font-black text-slate-400 group-hover/btn:border-brand-300 group-hover/btn:text-brand-600 transition-colors">A</span>
+                                    <span class="ml-6 text-slate-700 font-bold math-typeset text-xl italic">v / r</span>
+                                </button>
+                                <button id="teaser-opt-b" onclick="checkTeaserOption('B')" class="w-full flex items-center p-6 border-2 border-brand-600 bg-brand-50/50 dark:bg-brand-950/40 rounded-3xl shadow-xl shadow-brand-100/50 transition-all duration-300 transform hover:scale-[1.01]">
+                                    <span class="w-10 h-10 rounded-xl bg-brand-600 flex items-center justify-center text-xs font-black text-white shadow-lg shadow-brand-200">B</span>
+                                    <span class="ml-6 text-slate-900 font-black math-typeset text-xl italic">v<sup>2</sup> / r</span>
+                                    <div class="ml-auto w-8 h-8 rounded-full bg-brand-600 flex items-center justify-center text-white">
+                                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                                    </div>
+                                </button>
+                                <button id="teaser-opt-c" onclick="checkTeaserOption('C')" class="w-full flex items-center p-6 border-2 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-3xl hover:border-brand-200 hover:bg-brand-50/30 transition-all duration-300 transform hover:scale-[1.01] group/btn">
+                                    <span class="w-10 h-10 rounded-xl border border-slate-200 flex items-center justify-center text-xs font-black text-slate-400 group-hover/btn:border-brand-300 group-hover/btn:text-brand-600 transition-colors">C</span>
+                                    <span class="ml-6 text-slate-700 font-bold math-typeset text-xl italic">m v<sup>2</sup> / r</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Right Panel: Intelligent Feedback -->
+                        <div class="w-full lg:w-[40%] bg-slate-50 flex flex-col border-l border-slate-100">
+                            <div class="flex border-b border-slate-200 bg-white p-2 gap-2">
+                                <button id="tab-explanation" onclick="switchTeaserTab('explanation')" class="flex-1 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-brand-600 bg-brand-50 rounded-2xl transition-all">
+                                    Explanation
+                                </button>
+                                <button id="tab-metrics" onclick="switchTeaserTab('metrics')" class="flex-1 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-slate-600 rounded-2xl transition-all">
+                                    Time Metrics
+                                </button>
+                            </div>
+
+                            <div id="content-explanation" class="p-8 md:p-12 flex-1 overflow-y-auto">
+                                <div class="bg-white border border-slate-200 rounded-3xl p-6 mb-10 pro-shadow">
+                                    <div class="flex items-center gap-3 mb-4">
+                                        <div class="w-3 h-3 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
+                                        <span class="text-[10px] font-black uppercase tracking-widest text-emerald-600">AI Concept Mastery</span>
+                                    </div>
+                                    <p class="text-sm text-slate-700 font-bold leading-relaxed">
+                                        Perfect! You recognized that acceleration is purely kinematic, independent of mass. Mass only matters when calculating force.
+                                    </p>
+                                </div>
+
+                                <div class="space-y-10">
+                                    <div>
+                                        <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-6">Derivation Roadmap</h4>
+                                        <div class="space-y-6">
+                                            <div class="flex gap-5">
+                                                <div class="flex flex-col items-center">
+                                                    <div class="w-8 h-8 rounded-2xl bg-brand-600 text-white text-[10px] font-black flex items-center justify-center shadow-lg shadow-brand-100">01</div>
+                                                    <div class="w-0.5 h-full bg-slate-200 mt-2"></div>
+                                                </div>
+                                                <p class="text-sm text-slate-600 leading-relaxed font-bold pb-6">
+                                                    The change in velocity direction creates a net acceleration vector pointing toward the center.
+                                                </p>
+                                            </div>
+                                            <div class="flex gap-5">
+                                                <div class="flex flex-col items-center">
+                                                    <div class="w-8 h-8 rounded-2xl bg-white border border-slate-200 text-slate-400 text-[10px] font-black flex items-center justify-center">02</div>
+                                                </div>
+                                                <p class="text-sm text-slate-600 leading-relaxed font-bold">
+                                                    Using circular geometry, <span class="math-typeset">a<sub>c</sub> = lim(&Delta;v/&Delta;t)</span> simplifies to <span class="math-typeset font-bold italic">v<sup>2</sup>/r</span>.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="content-metrics" class="hidden p-8 md:p-12 flex-1 flex flex-col">
+                                <div class="text-center mb-12 bg-white rounded-[2rem] p-8 border border-slate-200 pro-shadow">
+                                    <div class="text-5xl font-display font-black text-slate-900 mb-3 tracking-tighter">00:48</div>
+                                    <div class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Pacing Analytics</div>
+                                </div>
+
+                                <div class="space-y-6">
+                                    <div class="p-6 bg-white rounded-3xl border border-slate-200 pro-shadow">
+                                        <div class="flex justify-between items-center mb-4">
+                                            <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Global Avg.</span>
+                                            <span class="text-xs font-black text-slate-900">01:12</span>
+                                        </div>
+                                        <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                                            <div class="h-full bg-brand-600 rounded-full w-[65%]"></div>
+                                        </div>
+                                    </div>
+                                    <div class="p-8 bg-slate-900 rounded-3xl text-white shadow-2xl">
+                                        <div class="flex items-center gap-2 mb-3">
+                                            <span class="text-[10px] font-black uppercase tracking-widest text-indigo-400">Insight Alpha</span>
+                                        </div>
+                                        <p class="text-sm font-bold leading-relaxed">
+                                            You're 33% faster than your peers on this topic. Our engine recommends higher complexity targets.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    
+    <!-- 3.5 INTERACTIVE AGGREGATE FORECASTER & COURSE ELIGIBILITY MATRIX -->
+    <section id="calculator" class="py-24 px-6 bg-slate-50 dark:bg-slate-950/40 relative border-y border-slate-200/80 dark:border-slate-800">
+        <div class="container mx-auto max-w-6xl relative z-10">
+            <div class="text-center mb-16">
+                <div class="inline-flex items-center gap-2 px-4 py-1.5 bg-brand-50 dark:bg-brand-950/60 text-brand-600 dark:text-brand-400 text-[10px] font-black rounded-full uppercase tracking-widest border border-brand-100 dark:border-brand-900/50 mb-4">
+                    🎯 Interactive Admission Forecaster
+                </div>
+                <h2 class="font-display text-3xl md:text-5xl font-extrabold text-slate-900 dark:text-white mb-4 tracking-tight">Calculate Your Target Aggregate</h2>
+                <p class="text-slate-500 dark:text-slate-400 text-base md:text-lg max-w-2xl mx-auto font-medium">Select your combination and hypothetical grades to discover your 16-point JUPEB score and direct-entry university cut-off eligibility.</p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                <!-- Left: Grade Selectors -->
+                <div class="lg:col-span-7 bg-white dark:bg-slate-900 p-8 md:p-10 rounded-[2.5rem] border border-slate-200/80 dark:border-slate-800 shadow-premium space-y-6">
+                    <h3 class="text-xs font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 mb-6">Curriculum Subject Trio</h3>
+                    
+                    <!-- Subject 1 -->
+                    <div class="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div class="flex items-center gap-3">
+                            <span class="w-8 h-8 rounded-xl bg-brand-600 text-white font-bold text-xs flex items-center justify-center shadow-md">1</span>
+                            <div>
+                                <span class="text-sm font-bold text-slate-900 dark:text-white block">First Subject</span>
+                                <span class="text-[10px] font-semibold text-slate-400">e.g. Physics / Government / Accounting</span>
+                            </div>
+                        </div>
+                        <select id="calc-sub1" onchange="calculateLandingAggregate()" class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-brand-500">
+                            <option value="5" selected>Grade A (5 Points)</option>
+                            <option value="4">Grade B (4 Points)</option>
+                            <option value="3">Grade C (3 Points)</option>
+                            <option value="2">Grade D (2 Points)</option>
+                            <option value="1">Grade E (1 Point)</option>
+                            <option value="0">Grade F (0 Points)</option>
+                        </select>
+                    </div>
+
+                    <!-- Subject 2 -->
+                    <div class="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div class="flex items-center gap-3">
+                            <span class="w-8 h-8 rounded-xl bg-brand-600 text-white font-bold text-xs flex items-center justify-center shadow-md">2</span>
+                            <div>
+                                <span class="text-sm font-bold text-slate-900 dark:text-white block">Second Subject</span>
+                                <span class="text-[10px] font-semibold text-slate-400">e.g. Chemistry / Literature / Economics</span>
+                            </div>
+                        </div>
+                        <select id="calc-sub2" onchange="calculateLandingAggregate()" class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-brand-500">
+                            <option value="5">Grade A (5 Points)</option>
+                            <option value="4" selected>Grade B (4 Points)</option>
+                            <option value="3">Grade C (3 Points)</option>
+                            <option value="2">Grade D (2 Points)</option>
+                            <option value="1">Grade E (1 Point)</option>
+                            <option value="0">Grade F (0 Points)</option>
+                        </select>
+                    </div>
+
+                    <!-- Subject 3 -->
+                    <div class="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div class="flex items-center gap-3">
+                            <span class="w-8 h-8 rounded-xl bg-brand-600 text-white font-bold text-xs flex items-center justify-center shadow-md">3</span>
+                            <div>
+                                <span class="text-sm font-bold text-slate-900 dark:text-white block">Third Subject</span>
+                                <span class="text-[10px] font-semibold text-slate-400">e.g. Biology / Mathematics / CRS</span>
+                            </div>
+                        </div>
+                        <select id="calc-sub3" onchange="calculateLandingAggregate()" class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-brand-500">
+                            <option value="5" selected>Grade A (5 Points)</option>
+                            <option value="4">Grade B (4 Points)</option>
+                            <option value="3">Grade C (3 Points)</option>
+                            <option value="2">Grade D (2 Points)</option>
+                            <option value="1">Grade E (1 Point)</option>
+                            <option value="0">Grade F (0 Points)</option>
+                        </select>
+                    </div>
+
+                    <div class="p-4 bg-emerald-50 dark:bg-emerald-950/40 rounded-2xl border border-emerald-100 dark:border-emerald-900/50 flex items-center gap-3">
+                        <span class="text-lg">⭐</span>
+                        <p class="text-xs text-emerald-800 dark:text-emerald-300 font-medium">
+                            <strong>JUPEB Bonus Rule:</strong> Passing all 3 subjects with at least Grade E automatically awards <strong>+1 Extra Bonus Point</strong>.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Right: Live Admission Projection -->
+                <div class="lg:col-span-5 bg-gradient-to-br from-slate-900 to-indigo-950 text-white p-8 md:p-10 rounded-[2.5rem] shadow-2xl border border-slate-800 space-y-6">
+                    <span class="text-[10px] font-black uppercase tracking-[0.3em] text-brand-400">Real-Time Forecast</span>
+                    
+                    <div class="flex items-baseline gap-3">
+                        <span id="calc-total-points" class="font-display text-6xl font-black tracking-tight text-white">15</span>
+                        <span class="text-slate-400 text-lg font-bold">/ 16 Points</span>
+                    </div>
+
+                    <div id="calc-tier-badge" class="inline-block px-3 py-1 bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 rounded-full text-xs font-bold uppercase tracking-wider">
+                        🌟 Elite Tier: Tier 1 Direct Entry
+                    </div>
+
+                    <div class="pt-4 border-t border-white/10 space-y-3">
+                        <h4 class="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Target University Prospects</h4>
+                        <div id="calc-course-matches" class="space-y-2 text-xs">
+                            <div class="p-3 bg-white/5 rounded-xl border border-white/10 flex items-center justify-between">
+                                <span class="font-bold">Medicine & Surgery</span>
+                                <span class="text-emerald-400 font-bold">UNILAG / UI (14-16 Pts)</span>
+                            </div>
+                            <div class="p-3 bg-white/5 rounded-xl border border-white/10 flex items-center justify-between">
+                                <span class="font-bold">Software / Mechanical Eng.</span>
+                                <span class="text-emerald-400 font-bold">UNILORIN / OAU (12-14 Pts)</span>
+                            </div>
+                            <div class="p-3 bg-white/5 rounded-xl border border-white/10 flex items-center justify-between">
+                                <span class="font-bold">Law / Economics</span>
+                                <span class="text-emerald-400 font-bold">UNIBEN / UNN (13-15 Pts)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <a href="auth.html" class="block w-full py-4 bg-brand-600 hover:bg-brand-500 text-white rounded-2xl font-black uppercase tracking-wider text-xs shadow-xl text-center transition-all active:scale-95 mt-4">
+                        Lock In This Score With Orbit →
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 4. THE ORBIT ADVANTAGE -->
+    <section id="features" class="py-32 px-6 bg-white relative overflow-hidden">
+        <!-- Background accents -->
+        <div class="absolute top-0 right-0 w-1/3 h-full bg-slate-50/50 -skew-x-12 translate-x-1/2"></div>
+
+        <div class="container mx-auto max-w-7xl relative z-10">
+            <div class="flex flex-col md:flex-row md:items-end justify-between mb-20 gap-8">
+                <div class="max-w-2xl">
+                    <div class="text-brand-600 text-[10px] font-black uppercase tracking-[0.3em] mb-4">Core Capabilities</div>
+                    <h2 class="font-display text-4xl md:text-6xl font-extrabold text-slate-900 tracking-tight leading-[0.95]">Standardized Excellence.</h2>
+                </div>
+                <p class="text-slate-500 text-lg max-w-sm font-medium leading-relaxed">
+                    We've deconstructed the JUPEB curriculum into a measurable, data-driven roadmap for your success.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <!-- Feature 1 -->
+                <div class="group p-10 bg-white border border-slate-100 rounded-[2.5rem] hover:border-brand-100 hover:shadow-premium transition-all duration-500 relative overflow-hidden">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-brand-50/50 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-brand-100/50 transition-colors"></div>
+                    <div class="w-14 h-14 bg-brand-50 text-brand-600 rounded-2xl flex items-center justify-center mb-8 group-hover:scale-110 group-hover:rotate-[5deg] transition-all duration-500">
+                        <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                    </div>
+                    <h4 class="font-display text-2xl font-black text-slate-900 mb-4">Weakness Isolation</h4>
+                    <p class="text-slate-500 text-sm leading-relaxed font-medium">
+                        Our engine identifies recurring conceptual errors and auto-generates spaced-repetition revision cards tailored to your gaps.
+                    </p>
+                </div>
+
+                <!-- Feature 2 -->
+                <div class="group p-10 bg-white border border-slate-100 rounded-[2.5rem] hover:border-emerald-100 hover:shadow-premium transition-all duration-500 relative overflow-hidden">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-emerald-50/50 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-emerald-100/50 transition-colors"></div>
+                    <div class="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mb-8 group-hover:scale-110 group-hover:-rotate-[5deg] transition-all duration-500">
+                        <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    </div>
+                    <h4 class="font-display text-2xl font-black text-slate-900 mb-4">Admission Forecast</h4>
+                    <p class="text-slate-500 text-sm leading-relaxed font-medium">
+                        Real-time calculation of your 15-point aggregate based on cumulative analytics and historical university thresholds.
+                    </p>
+                </div>
+
+                <!-- Feature 3 -->
+                <div class="group p-10 bg-white border border-slate-100 rounded-[2.5rem] hover:border-indigo-100 hover:shadow-premium transition-all duration-500 relative overflow-hidden">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-indigo-50/50 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-indigo-100/50 transition-colors"></div>
+                    <div class="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mb-8 group-hover:scale-110 group-hover:rotate-[5deg] transition-all duration-500">
+                        <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    </div>
+                    <h4 class="font-display text-2xl font-black text-slate-900 mb-4">Simulated Pressure</h4>
+                    <p class="text-slate-500 text-sm leading-relaxed font-medium">
+                        Toggle "Exam Atmosphere" to disable hints, enforce strict time-per-question limits, and mirror the actual test day UI.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 5. FINAL CTA & FOOTER -->
+    <footer class="bg-slate-50 pt-32 pb-12 border-t border-slate-200 relative overflow-hidden">
+        <div class="container mx-auto px-6 max-w-7xl">
+            <!-- Impactful CTA -->
+            <div class="bg-brand-600 rounded-[3rem] p-12 md:p-24 text-center relative overflow-hidden shadow-2xl shadow-brand-200/50 group">
+                <div class="absolute inset-0 grid-pattern opacity-10 group-hover:opacity-20 transition-opacity duration-700"></div>
+                <!-- Background Orbs -->
+                <div class="absolute -top-24 -left-24 w-64 h-64 bg-white/10 rounded-full blur-3xl animate-float"></div>
+                <div class="absolute -bottom-24 -right-24 w-64 h-64 bg-accent-400/20 rounded-full blur-3xl animate-float" style="animation-delay: -3s"></div>
+
+                <div class="relative z-10">
+                    <h2 class="font-display text-4xl md:text-7xl font-extrabold text-white mb-8 tracking-tighter leading-none">Your 15 Points <br/>Wait Here.</h2>
+                    <p class="text-brand-100 text-lg md:text-xl mb-14 max-w-2xl mx-auto font-medium leading-relaxed opacity-90">
+                        Join over 12,000 candidates who have elevated their preparation with the digital standard for JUPEB excellence.
+                    </p>
+                    <div class="flex flex-col sm:flex-row items-center justify-center gap-6">
+                        <a href="auth.html" class="w-full sm:w-auto bg-white text-brand-600 hover:bg-slate-50 font-black px-12 py-6 rounded-2xl transition-all hover:scale-105 active:scale-95 shadow-xl text-lg">
+                            Launch Your Cockpit
+                        </a>
+                        <a href="auth.html" class="text-white font-black text-sm uppercase tracking-[0.2em] border-b-2 border-white/30 hover:border-white transition-all pb-1">
+                            Create Free Account
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer Links -->
+            <div class="mt-32 grid grid-cols-1 md:grid-cols-4 gap-12 border-b border-slate-200 pb-16">
+                <div class="md:col-span-1">
+                    <div class="flex items-center gap-3 mb-6">
+                        <div class="w-9 h-9 bg-slate-900 rounded-xl flex items-center justify-center shadow-lg">
+                            <img src="logo.png" alt="Orbit" class="w-6 h-6 object-contain">
+                        </div>
+                        <span class="font-display text-2xl font-black text-slate-900 tracking-tighter">Orbit</span>
+                    </div>
+                    <p class="text-slate-400 text-sm font-medium leading-relaxed">
+                        Redefining Direct Entry preparation through high-fidelity simulation and data-driven learning.
+                    </p>
+                </div>
+                
+                <div>
+                    <h4 class="text-[10px] font-black text-slate-900 uppercase tracking-[0.3em] mb-6">Product</h4>
+                    <ul class="space-y-4 text-sm font-bold text-slate-500">
+                        <li><a href="#simulator" class="hover:text-brand-600 transition-colors">CBT Simulator</a></li>
+                        <li><a href="#" class="hover:text-brand-600 transition-colors">AI Explainer</a></li>
+                        <li><a href="#" class="hover:text-brand-600 transition-colors">Aggregate Tracker</a></li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h4 class="text-[10px] font-black text-slate-900 uppercase tracking-[0.3em] mb-6">Resources</h4>
+                    <ul class="space-y-4 text-sm font-bold text-slate-500">
+                        <li><a href="#" class="hover:text-brand-600 transition-colors">Past Questions</a></li>
+                        <li><a href="#" class="hover:text-brand-600 transition-colors">Study Roadmap</a></li>
+                        <li><a href="#" class="hover:text-brand-600 transition-colors">Support Center</a></li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h4 class="text-[10px] font-black text-slate-900 uppercase tracking-[0.3em] mb-6">Company</h4>
+                    <ul class="space-y-4 text-sm font-bold text-slate-500">
+                        <li><a href="#" class="hover:text-brand-600 transition-colors">About Orbit</a></li>
+                        <li><a href="#" class="hover:text-brand-600 transition-colors">Privacy Policy</a></li>
+                        <li><a href="#" class="hover:text-brand-600 transition-colors">Terms of Service</a></li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Bottom Bar -->
+            <div class="mt-12 flex flex-col md:flex-row justify-between items-center gap-6">
+                <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                    © 2026 Orbit Education Group. All rights reserved.
+                </p>
+                <div class="flex items-center gap-6">
+                    <span class="text-xs font-bold text-slate-400">Created by <span class="text-brand-600">Code Maverick</span></span>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- JAVASCRIPT BEHAVIORS -->
+    <script>
+        function switchTeaserTab(tab) {
+            const tabs = ['explanation', 'metrics'];
+            const contentContainer = document.getElementById('content-explanation').parentElement;
+            
+            // Add a subtle loading effect
+            contentContainer.style.opacity = '0.5';
+            
+            setTimeout(() => {
+                tabs.forEach(t => {
+                    const btn = document.getElementById(`tab-${t}`);
+                    const content = document.getElementById(`content-${t}`);
+                    if (t === tab) {
+                        btn.classList.add('text-brand-600', 'border-brand-600');
+                        btn.classList.remove('text-slate-400', 'border-transparent');
+                        content.classList.remove('hidden');
+                    } else {
+                        btn.classList.add('text-slate-400', 'border-transparent');
+                        btn.classList.remove('text-brand-600', 'border-brand-600');
+                        content.classList.add('hidden');
+                    }
+                });
+                contentContainer.style.opacity = '1';
+            }, 150);
+        }
+
+        function updateProfiler() {
+            const probValue = document.getElementById('prob-value');
+            const probBar = document.getElementById('prob-bar');
+            
+            // Subtle animation for probability shift
+            let target = 85 + Math.floor(Math.random() * 10);
+            probValue.innerText = target + '%';
+            probBar.style.width = target + '%';
+        }
+
+        // PWA Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js');
+            });
+        }
+        
+        window.toggleDropdown = function() {
+            document.getElementById('profile-dropdown').classList.toggle('hidden');
+        }
+    </script>
+
+    <!-- Interactive Teaser & Calculator Script -->
+    <script>
+        function checkTeaserOption(choice) {
+            window.orbitAudio?.init();
+            const btnA = document.getElementById('teaser-opt-a');
+            const btnB = document.getElementById('teaser-opt-b');
+            const btnC = document.getElementById('teaser-opt-c');
+            const expTitle = document.getElementById('teaser-exp-title');
+            const expDesc = document.getElementById('teaser-exp-desc');
+
+            if (choice === 'B') {
+                window.orbitAudio?.playCorrect();
+                if (btnB) {
+                    btnB.className = "w-full flex items-center p-6 border-2 border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/40 rounded-3xl shadow-xl transition-all";
+                }
+                if (expTitle) expTitle.innerText = "Correct! Purely Kinematic";
+                if (expDesc) expDesc.innerText = "Centripetal acceleration is purely a kinematic property (a = v²/r) dependent only on velocity and radius, independent of particle mass.";
+            } else {
+                window.orbitAudio?.playIncorrect();
+                if (choice === 'A' && btnA) btnA.className = "w-full flex items-center p-6 border-2 border-rose-500 bg-rose-50/50 dark:bg-rose-950/40 rounded-3xl transition-all";
+                if (choice === 'C' && btnC) btnC.className = "w-full flex items-center p-6 border-2 border-rose-500 bg-rose-50/50 dark:bg-rose-950/40 rounded-3xl transition-all";
+                if (expTitle) expTitle.innerText = "Neural Alert: Formula Trap";
+                if (expDesc) expDesc.innerText = "Option C (mv²/r) represents Centripetal Force (F = ma), not Centripetal Acceleration! Option A is missing the square.";
+            }
+        }
+
+        function calculateLandingAggregate() {
+            const p1 = parseInt(document.getElementById('calc-sub1')?.value || '5');
+            const p2 = parseInt(document.getElementById('calc-sub2')?.value || '4');
+            const p3 = parseInt(document.getElementById('calc-sub3')?.value || '5');
+
+            let bonus = (p1 > 0 && p2 > 0 && p3 > 0) ? 1 : 0;
+            let total = p1 + p2 + p3 + bonus;
+
+            const totalEl = document.getElementById('calc-total-points');
+            if (totalEl) totalEl.innerText = total.toString();
+
+            const badge = document.getElementById('calc-tier-badge');
+            const matches = document.getElementById('calc-course-matches');
+
+            if (total >= 14) {
+                if (badge) {
+                    badge.className = "inline-block px-3 py-1 bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 rounded-full text-xs font-bold uppercase tracking-wider";
+                    badge.innerText = "🌟 Elite Tier: 100% Direct Entry Guarantee";
+                }
+                if (matches) {
+                    matches.innerHTML = `
+                        <div class="p-3 bg-white/5 rounded-xl border border-white/10 flex items-center justify-between">
+                            <span class="font-bold">Medicine & Surgery / Pharmacy</span>
+                            <span class="text-emerald-400 font-bold">UNILAG / UI / OAU (14-16 Pts)</span>
+                        </div>
+                        <div class="p-3 bg-white/5 rounded-xl border border-white/10 flex items-center justify-between">
+                            <span class="font-bold">Law / Dentistry</span>
+                            <span class="text-emerald-400 font-bold">UNILAG / UNIBEN (13-15 Pts)</span>
+                        </div>
+                        <div class="p-3 bg-white/5 rounded-xl border border-white/10 flex items-center justify-between">
+                            <span class="font-bold">Computer Science / Software Eng.</span>
+                            <span class="text-emerald-400 font-bold">UNILORIN / UI (12-14 Pts)</span>
+                        </div>
+                    `;
+                }
+            } else if (total >= 10) {
+                if (badge) {
+                    badge.className = "inline-block px-3 py-1 bg-brand-500/20 border border-brand-400/30 text-brand-300 rounded-full text-xs font-bold uppercase tracking-wider";
+                    badge.innerText = "⚡ Competitive Tier: High Direct Entry Probability";
+                }
+                if (matches) {
+                    matches.innerHTML = `
+                        <div class="p-3 bg-white/5 rounded-xl border border-white/10 flex items-center justify-between">
+                            <span class="font-bold">Mechanical / Civil Engineering</span>
+                            <span class="text-brand-400 font-bold">UNILORIN / UNIBEN (10-13 Pts)</span>
+                        </div>
+                        <div class="p-3 bg-white/5 rounded-xl border border-white/10 flex items-center justify-between">
+                            <span class="font-bold">Accounting / Economics / Finance</span>
+                            <span class="text-brand-400 font-bold">OAU / UNILAG (11-13 Pts)</span>
+                        </div>
+                        <div class="p-3 bg-white/5 rounded-xl border border-white/10 flex items-center justify-between">
+                            <span class="font-bold">Microbiology / Biochemistry</span>
+                            <span class="text-brand-400 font-bold">All Federal Unis (8-12 Pts)</span>
+                        </div>
+                    `;
+                }
+            } else {
+                if (badge) {
+                    badge.className = "inline-block px-3 py-1 bg-amber-500/20 border border-amber-400/30 text-amber-300 rounded-full text-xs font-bold uppercase tracking-wider";
+                    badge.innerText = "⚠️ Boost Required: Step Up Practice Now";
+                }
+                if (matches) {
+                    matches.innerHTML = `
+                        <div class="p-3 bg-white/5 rounded-xl border border-white/10 flex items-center justify-between">
+                            <span class="font-bold">Pure Sciences / Education</span>
+                            <span class="text-amber-400 font-bold">State & Federal Unis (6-9 Pts)</span>
+                        </div>
+                        <div class="p-3 bg-white/5 rounded-xl border border-white/10 flex items-center justify-between">
+                            <span class="font-bold">Agriculture / Fisheries</span>
+                            <span class="text-amber-400 font-bold">Eligible for Direct Entry (6-9 Pts)</span>
+                        </div>
+                    `;
+                }
+            }
+        }
+
+        function switchTeaserTab(tab) {
+            const tabExp = document.getElementById('tab-explanation');
+            const tabMet = document.getElementById('tab-metrics');
+            const cntExp = document.getElementById('content-explanation');
+            const cntMet = document.getElementById('content-metrics');
+
+            if (tab === 'explanation') {
+                tabExp.className = "flex-1 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-brand-600 bg-brand-50 dark:bg-slate-800 rounded-2xl transition-all";
+                tabMet.className = "flex-1 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-slate-600 rounded-2xl transition-all";
+                cntExp.classList.remove('hidden');
+                cntMet.classList.add('hidden');
+            } else {
+                tabMet.className = "flex-1 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-brand-600 bg-brand-50 dark:bg-slate-800 rounded-2xl transition-all";
+                tabExp.className = "flex-1 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-slate-600 rounded-2xl transition-all";
+                cntMet.classList.remove('hidden');
+                cntExp.classList.add('hidden');
+            }
+        }
+    </script>
+
+</body>
+</html>

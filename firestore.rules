@@ -1,0 +1,109 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =========================================================================
+    // HELPER FUNCTIONS
+    // =========================================================================
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        getUserData().role == 'admin';
+    }
+
+    // Role cannot be admin on client-side create; must default to student or user if provided
+    function isValidInitialRole(data) {
+      return !('role' in data) || data.role == 'student' || data.role == 'user';
+    }
+
+    // Role cannot be escalated or tampered with on client-side update
+    function isRolePreserved(newData, oldData) {
+      return (!('role' in newData) && !('role' in oldData)) ||
+             (('role' in newData) && ('role' in oldData) && newData.role == oldData.role);
+    }
+
+    // =========================================================================
+    // USERS COLLECTION & SUBCOLLECTIONS
+    // =========================================================================
+
+    match /users/{userId} {
+      // Users can read their own profile; Admins can list and read all users
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+
+      // Users can create their own profile; cannot self-assign 'admin' role
+      allow create: if isOwner(userId) && isValidInitialRole(request.resource.data);
+
+      // Users can update their own profile (preserving role); Admins can update roles
+      allow update: if (isOwner(userId) && isRolePreserved(request.resource.data, resource.data)) || isAdmin();
+
+      // User profile deletion is disallowed
+      allow delete: if false;
+
+      // CBT exam attempts, scores, and timestamps
+      match /examHistory/{examId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create, update: if isOwner(userId);
+        allow delete: if false;
+      }
+
+      // Questions the user failed, spaced repetition & review
+      match /weaknessBucket/{weaknessId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create, update, delete: if isOwner(userId);
+      }
+    }
+
+    // =========================================================================
+    // QUESTION BANK & CURRICULUM HIERARCHY
+    // =========================================================================
+
+    // Subject documents and subcollections
+    match /subjects/{subject} {
+      // Anyone can read subject metadata; writes restricted to admins
+      allow read: if true;
+      allow write: if isAdmin();
+
+      match /years/{year} {
+        // Anyone can read available years; writes restricted to admins
+        allow read: if true;
+        allow write: if isAdmin();
+
+        match /questions/{questionId} {
+          // Public read access for questions (practice, CBT exams)
+          allow read: if true;
+          // Only authenticated admin can create, update, or delete questions
+          allow write: if isAdmin();
+        }
+      }
+    }
+
+    // Support collectionGroup queries for 'questions' if invoked across all subjects
+    match /{path=**}/questions/{questionId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // =========================================================================
+    // DEFAULT DENY RULE
+    // =========================================================================
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

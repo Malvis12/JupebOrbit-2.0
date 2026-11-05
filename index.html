@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>JUPEB Orbit | The Definitive CBT Cockpit</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <!-- Fast Refresh Preamble Safety Shield -->
+    <script>
+      window.$RefreshReg$ = window.$RefreshReg$ || function() {};
+      window.$RefreshSig$ = window.$RefreshSig$ || function() { return function(type) { return type; }; };
+      window.__vite_plugin_react_preamble_installed__ = true;
+      
+      // Auto-redirect if accidentally opened via Live Server (port 5500) or file://
+      if (window.location.protocol === 'file:' || (window.location.port && window.location.port !== '3000')) {
+        console.info('Redirecting to active Vite dev server at port 3000...');
+        window.location.href = 'http://localhost:3000' + window.location.search;
+      }
+    </script>
+  </head>
+  <body class="bg-[#FAFBFF] dark:bg-slate-950 text-slate-800 dark:text-slate-200 antialiased min-h-screen">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

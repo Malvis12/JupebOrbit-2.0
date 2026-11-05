@@ -1,0 +1,35 @@
+QUESTION: A body starts from rest and accelerates uniformly at $2\\text{ m/s}^2$ for $10\\text{ s}$. Calculate the total distance covered.
+OPTIONS:
+A. $50\\text{ m}$
+B. $100\\text{ m}$
+C. $150\\text{ m}$
+D. $200\\text{ m}$
+CORRECT: B
+EXPLANATION: Using $s = ut + \\frac{1}{2}at^2$ with $u=0$, $a=2\\text{ m/s}^2$, $t=10\\text{ s}$:\n$s = 0 + \\frac{1}{2}(2)(10)^2 = 100\\text{ m}$.\n\nPitfall: Forgetting that starting from rest implies initial velocity $u = 0$.
+TOPIC: Kinematics & Motion
+SUBJECT: physics
+YEAR: 2025
+---
+QUESTION: Which of the following physical quantities has the same dimensions as work?
+OPTIONS:
+A. Momentum
+B. Power
+C. Torque
+D. Force
+CORRECT: C
+EXPLANATION: Work = $\\text{Force} \\times \\text{distance} = [ML^2T^{-2}]$. Torque = $\\text{Force} \\times \\text{perpendicular distance} = [ML^2T^{-2}]$.
+TOPIC: Units and Dimensions
+SUBJECT: physics
+YEAR: 2025
+---
+QUESTION: Evaluate $\\lim_{x \\to 0} \\frac{\\sin 3x}{x}$.
+OPTIONS:
+A. $0$
+B. $1$
+C. $3$
+D. $\\infty$
+CORRECT: C
+EXPLANATION: $\\lim_{x \\to 0} \\frac{\\sin kx}{x} = k$. Here $k = 3$, hence the limit equals $3$.
+TOPIC: Calculus: Limits
+SUBJECT: mathematics
+YEAR: 2025
