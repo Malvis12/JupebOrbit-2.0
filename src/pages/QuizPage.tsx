@@ -152,7 +152,17 @@ export const QuizPage: React.FC = () => {
       });
 
       // 3. Assemble dynamic mix: 2 questions per subject in combination (Total 6 questions)
-      // Prioritizing topics present in user's weakness bucket
+      // Prioritizing unseen questions first, then weakness topics
+      const SEEN_KEY = 'jupeb_orbit_daily_seen';
+      let seenIds: string[] = [];
+      try {
+        seenIds = JSON.parse(localStorage.getItem(SEEN_KEY) || '[]');
+        if (!Array.isArray(seenIds)) seenIds = [];
+      } catch {
+        seenIds = [];
+      }
+      const seenSet = new Set(seenIds);
+
       const selectedMix: Question[] = [];
       const weaknessTopics = new Set(userWeaknesses.map(w => (w.topic || '').toLowerCase().trim()));
 
@@ -161,8 +171,11 @@ export const QuizPage: React.FC = () => {
         const availableInSubj = questionsBySubj[sKey] || [];
 
         if (availableInSubj.length > 0) {
-          // Shuffle available questions
-          const shuffled = [...availableInSubj].sort(() => 0.5 - Math.random());
+          const unseenPool = availableInSubj.filter(q => !seenSet.has(q.id));
+          const pool = unseenPool.length >= 2 ? unseenPool : availableInSubj;
+
+          // Shuffle pool
+          const shuffled = [...pool].sort(() => 0.5 - Math.random());
           // Sort questions matching weakness topics first (Spaced Repetition)
           shuffled.sort((a, b) => {
             const aIsWeak = weaknessTopics.has((a.syllabusTopic || '').toLowerCase().trim()) ? 1 : 0;
@@ -176,6 +189,13 @@ export const QuizPage: React.FC = () => {
       }
 
       if (selectedMix.length > 0) {
+        // Record newly served question IDs (keep last 100)
+        try {
+          const updatedSeen = Array.from(new Set([...seenIds, ...selectedMix.map(q => q.id)])).slice(-100);
+          localStorage.setItem(SEEN_KEY, JSON.stringify(updatedSeen));
+        } catch {
+          // Ignore storage errors
+        }
         // Interleave / shuffle the mix so subjects alternate
         setQuestions(selectedMix.sort(() => 0.5 - Math.random()));
       } else {

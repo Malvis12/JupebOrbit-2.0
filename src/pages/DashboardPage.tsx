@@ -13,7 +13,8 @@ import {
   AlertTriangle,
   CheckCircle2,
   BrainCircuit,
-  History as HistoryIcon
+  History as HistoryIcon,
+  Zap
 } from 'lucide-react';
 import { FlashMasterModal } from '../components/dashboard/FlashMasterModal';
 import { FormulaVaultDrawer } from '../components/tools/FormulaVaultDrawer';
@@ -23,6 +24,7 @@ export const DashboardPage: React.FC = () => {
   const { user, userData } = useAuth();
   const [recentExams, setRecentExams] = useState<ExamHistoryItem[]>([]);
   const [weaknessCount, setWeaknessCount] = useState<number>(0);
+  const [loadingMetrics, setLoadingMetrics] = useState<boolean>(true);
   const [flashMasterOpen, setFlashMasterOpen] = useState(false);
   const [formulaVaultOpen, setFormulaVaultOpen] = useState(false);
 
@@ -41,11 +43,18 @@ export const DashboardPage: React.FC = () => {
         const exams = histSnap.docs.map(d => ({ id: d.id, ...d.data() } as ExamHistoryItem));
         setRecentExams(exams);
 
-        // Fetch weakness bucket count
+        // Fetch due weakness bucket count
         const weakSnap = await getDocs(collection(db, 'users', user.uid, 'weaknessBucket'));
-        setWeaknessCount(weakSnap.size);
+        const now = Date.now();
+        const dueCount = weakSnap.docs.filter((d) => {
+          const next = d.data().nextReviewDate;
+          return !next || new Date(next).getTime() <= now;
+        }).length;
+        setWeaknessCount(dueCount);
       } catch (e) {
         console.error('Error loading dashboard metrics:', e);
+      } finally {
+        setLoadingMetrics(false);
       }
     };
 
@@ -67,9 +76,9 @@ export const DashboardPage: React.FC = () => {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 text-[11px] font-black uppercase tracking-wider mb-2">
-                <span>{userData?.targetUniversity || 'Target University'}</span>
+                <span>{userData?.targetUniversity || (userData as any)?.targetInstitution || 'Target University'}</span>
                 <span>•</span>
-                <span>{userData?.targetCourse || 'Target Course'}</span>
+                <span>{userData?.targetCourse || (userData as any)?.targetDepartment || 'Target Course'}</span>
               </div>
               <h1 className="font-display font-black text-2xl sm:text-3xl text-slate-900 dark:text-white">
                 Welcome, {userData?.username || 'Candidate'} 👋
@@ -79,27 +88,19 @@ export const DashboardPage: React.FC = () => {
               </p>
             </div>
 
-            {/* Daily Streak & Quick CTA */}
-            <div className="flex flex-wrap items-center gap-2.5">
+            {/* Daily Streak & Primary CTA */}
+            <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-900/40 text-amber-700 dark:text-amber-300">
-                <Flame className="w-4 h-4 fill-amber-500 text-amber-500 animate-bounce" />
+                <Flame className="w-4 h-4 fill-amber-500 text-amber-500" />
                 <div className="text-left">
                   <div className="text-xs font-black leading-none">{userData?.dailyStreak || 1} Days</div>
-                  <div className="text-[9px] text-amber-600/80 dark:text-amber-400 font-bold uppercase tracking-wider">Practice Streak</div>
+                  <div className="text-[9px] text-amber-600/80 dark:text-amber-400 font-bold uppercase tracking-wider">Streak</div>
                 </div>
               </div>
 
               <Link
-                to="/exam?mode=marathon"
-                className="px-3.5 py-2.5 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 transition-transform hover:-translate-y-0.5"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>3-Subject Marathon</span>
-              </Link>
-
-              <Link
                 to="/exam"
-                className="px-4 py-2.5 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-brand-500/20 flex items-center gap-2 transition-transform hover:-translate-y-0.5"
+                className="min-h-[44px] px-5 py-2.5 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-brand-500/20 flex items-center gap-2 transition-transform hover:-translate-y-0.5"
               >
                 <Play className="w-3.5 h-3.5 fill-current" />
                 <span>Simulate Exam</span>
@@ -112,111 +113,97 @@ export const DashboardPage: React.FC = () => {
       {/* Main Cockpit Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-8">
         
-        {/* 1. JUPEB AGGREGATE POINT GAUGE & READINESS */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Aggregate Card */}
-          <div className="lg:col-span-2 bg-gradient-to-br from-brand-600 via-brand-700 to-indigo-900 rounded-[2.5rem] p-6 sm:p-8 text-white shadow-2xl relative overflow-hidden flex flex-col justify-between">
-            <div className="relative z-10">
-              <div className="flex items-center justify-between">
-                <span className="px-3.5 py-1.5 rounded-full bg-white/20 backdrop-blur-md text-[11px] font-black uppercase tracking-wider">
-                  Official JUPEB Point Projection
+        {/* 1. JUPEB AGGREGATE POINT GAUGE & QUICK ACTIONS */}
+        <div className="bg-gradient-to-br from-brand-600 via-brand-700 to-indigo-900 rounded-3xl p-6 sm:p-8 text-white shadow-2xl relative overflow-hidden">
+          <div className="relative z-10">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="px-3.5 py-1.5 rounded-full bg-white/20 backdrop-blur-md text-[11px] font-black uppercase tracking-wider">
+                Official JUPEB Point Projection
+              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={`px-3 py-1 rounded-full text-xs font-black flex items-center gap-1.5 ${
+                  hasRisk
+                    ? 'bg-rose-500/25 border border-rose-300/40 text-rose-100'
+                    : 'bg-emerald-400/20 border border-emerald-300/40 text-emerald-100'
+                }`}>
+                  {hasRisk ? <AlertTriangle className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                  {aggregateScore >= 12 ? 'High Admission Odds' : aggregateScore >= 8 ? 'Moderate Odds' : 'Initializing'}
                 </span>
                 {bonusAwarded && (
                   <span className="px-3 py-1 rounded-full bg-emerald-400/20 border border-emerald-300/40 text-emerald-200 text-xs font-black flex items-center gap-1">
                     <Sparkles className="w-3.5 h-3.5" />
-                    +1 Bonus Point Active
+                    +1 Bonus Pt
                   </span>
                 )}
               </div>
-
-              <div className="mt-8 flex flex-col sm:flex-row sm:items-baseline gap-4 sm:gap-6">
-                <div className="font-display font-black text-5xl sm:text-7xl tracking-tight">
-                  {aggregateScore.toFixed(1)}
-                </div>
-                <div className="text-xl sm:text-2xl font-bold text-brand-200">
-                  / 16.0 Max Aggregate Points
-                </div>
-              </div>
-
-              <p className="mt-4 text-xs sm:text-sm text-brand-100 max-w-xl leading-relaxed">
-                Calculated from your confidence-weighted mock examinations across {combination.join(', ')}.
-                {hasRisk 
-                  ? ' ⚠️ Notice: You currently have a projected F-Grade in one subject. Address flagged weaknesses to qualify for the 16th point.'
-                  : ' Projected performance is on track for direct entry admission.'}
-              </p>
             </div>
 
-            {/* Quick Actions at Bottom of Hero Card */}
-            <div className="relative z-10 mt-8 pt-6 border-t border-white/10 flex flex-wrap items-center gap-3">
+            <div className="mt-6 flex flex-col sm:flex-row sm:items-baseline gap-2 sm:gap-4">
+              <div className="font-display font-black text-5xl sm:text-6xl tracking-tight">
+                {aggregateScore.toFixed(1)}
+              </div>
+              <div className="text-lg sm:text-xl font-bold text-brand-200">
+                / 16.0 Max Aggregate Points
+              </div>
+            </div>
+
+            <div className="mt-4 max-w-md">
+              <div className="w-full h-2 rounded-full bg-white/15 overflow-hidden">
+                <div
+                  className="h-full bg-emerald-400 rounded-full transition-all duration-500"
+                  style={{ width: `${Math.min(100, Math.round((aggregateScore / 16) * 100))}%` }}
+                />
+              </div>
+            </div>
+
+            <p className="mt-4 text-xs sm:text-sm text-brand-100 max-w-2xl leading-relaxed">
+              {hasRisk
+                ? 'Notice: You have a projected F-Grade in one subject. Address flagged weaknesses to qualify for the 16th point.'
+                : `Projected performance across ${combination.join(', ')} is on track for direct entry admission.`}
+            </p>
+
+            {/* Quick Actions */}
+            <div className="mt-6 pt-5 border-t border-white/10 grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2.5">
+              <Link
+                to="/quiz"
+                className="min-h-[44px] px-3.5 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center sm:justify-start gap-2 transition-colors"
+              >
+                <Zap className="w-4 h-4 text-amber-300 shrink-0" />
+                <span>Daily Mix</span>
+              </Link>
+
+              <Link
+                to="/exam?mode=marathon"
+                className="min-h-[44px] px-3.5 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center sm:justify-start gap-2 transition-colors"
+              >
+                <Sparkles className="w-4 h-4 text-indigo-200 shrink-0" />
+                <span className="truncate">Marathon</span>
+              </Link>
+
               <button
                 onClick={() => setFlashMasterOpen(true)}
-                className="px-4 py-2.5 rounded-xl bg-white/15 hover:bg-white/25 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition-colors"
+                className="min-h-[44px] px-3.5 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center sm:justify-start gap-2 transition-colors"
               >
-                <BrainCircuit className="w-4 h-4 text-amber-300" />
-                <span>Flash-Master ({weaknessCount} Weaknesses)</span>
+                <BrainCircuit className="w-4 h-4 text-amber-300 shrink-0" />
+                <span className="truncate">Flash ({weaknessCount})</span>
               </button>
 
               <button
                 onClick={() => setFormulaVaultOpen(true)}
-                className="px-4 py-2.5 rounded-xl bg-white/15 hover:bg-white/25 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition-colors"
+                className="min-h-[44px] px-3.5 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center sm:justify-start gap-2 transition-colors"
               >
-                <BookOpen className="w-4 h-4 text-brand-300" />
-                <span>Formula Vault (V)</span>
+                <BookOpen className="w-4 h-4 text-brand-300 shrink-0" />
+                <span className="truncate">Formulas</span>
               </button>
+
+              <Link
+                to="/practice"
+                className="col-span-2 sm:col-span-1 min-h-[44px] px-4 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-colors sm:ml-auto"
+              >
+                <span>Practice Bank</span>
+                <ArrowRight className="w-3.5 h-3.5 shrink-0" />
+              </Link>
             </div>
-          </div>
-
-          {/* Admission Probability & Weakness Summary */}
-          <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-premium dark:shadow-premium-dark flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-display font-bold text-slate-900 dark:text-white text-base">
-                  Admission Probability
-                </h3>
-                {hasRisk ? (
-                  <span className="p-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-600">
-                    <AlertTriangle className="w-4 h-4" />
-                  </span>
-                ) : (
-                  <span className="p-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600">
-                    <CheckCircle2 className="w-4 h-4" />
-                  </span>
-                )}
-              </div>
-
-              <div className="py-4 text-center">
-                <div className={`text-4xl font-display font-black ${
-                  aggregateScore >= 12 ? 'text-emerald-600 dark:text-emerald-400' :
-                  aggregateScore >= 8 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-500'
-                }`}>
-                  {aggregateScore >= 12 ? 'HIGH' : aggregateScore >= 8 ? 'MODERATE' : 'INITIALIZING'}
-                </div>
-                <p className="text-xs text-slate-400 mt-1">
-                  for {userData?.targetCourse || 'Target Program'}
-                </p>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 space-y-2 mt-4 text-xs">
-                <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                  <span>Weakness Bucket:</span>
-                  <span className="font-bold text-rose-500">{weaknessCount} Concepts</span>
-                </div>
-                <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                  <span>16th Point Bonus:</span>
-                  <span className="font-bold text-slate-900 dark:text-white">
-                    {bonusAwarded ? 'Earned (+1 Pt)' : 'Pending'}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <Link
-              to="/practice"
-              className="mt-6 w-full py-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-750 text-slate-800 dark:text-slate-200 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors"
-            >
-              <span>Practice Question Bank</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
           </div>
         </div>
 
@@ -266,7 +253,7 @@ export const DashboardPage: React.FC = () => {
                       <div className="w-full h-2.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
                         <div 
                           className="h-full bg-brand-600 rounded-full transition-all duration-500"
-                          style={{ width: `${Math.max(subMastery, 5)}%` }}
+                          style={{ width: `${subMastery}%` }}
                         />
                       </div>
                     </div>
@@ -275,13 +262,13 @@ export const DashboardPage: React.FC = () => {
                   <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 flex gap-2">
                     <Link
                       to={`/practice?subject=${encodeURIComponent(subKey)}`}
-                      className="flex-1 py-2 text-center rounded-xl bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-750 text-xs font-bold text-slate-700 dark:text-slate-300 transition-colors"
+                      className="flex-1 min-h-[44px] flex items-center justify-center rounded-xl bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-750 text-xs font-bold text-slate-700 dark:text-slate-300 transition-colors"
                     >
                       Practice
                     </Link>
                     <Link
                       to={`/exam?subject=${encodeURIComponent(subKey)}`}
-                      className="flex-1 py-2 text-center rounded-xl bg-brand-50 dark:bg-brand-950/60 hover:bg-brand-100 text-xs font-bold text-brand-600 dark:text-brand-400 transition-colors"
+                      className="flex-1 min-h-[44px] flex items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-950/60 hover:bg-brand-100 text-xs font-bold text-brand-600 dark:text-brand-400 transition-colors"
                     >
                       Mock Test
                     </Link>
@@ -296,7 +283,7 @@ export const DashboardPage: React.FC = () => {
         <SyllabusHeatmap />
 
         {/* 4. RECENT MOCK RUNS */}
-        <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-premium dark:shadow-premium-dark">
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-premium dark:shadow-premium-dark">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2.5">
               <HistoryIcon className="w-5 h-5 text-brand-600" />
@@ -309,13 +296,21 @@ export const DashboardPage: React.FC = () => {
             </Link>
           </div>
 
-          {recentExams.length === 0 ? (
+          {loadingMetrics ? (
+            <div className="space-y-3 py-2">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 animate-pulse" />
+              ))}
+            </div>
+          ) : recentExams.length === 0 ? (
             <div className="text-center py-12 text-slate-400 space-y-3">
-              <div className="text-4xl">⏱️</div>
-              <p className="text-sm font-semibold">No mock simulations taken yet.</p>
+              <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center mx-auto">
+                <HistoryIcon className="w-6 h-6" />
+              </div>
+              <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">No mock simulations taken yet.</p>
               <Link
                 to="/exam"
-                className="inline-block px-6 py-2.5 bg-brand-600 text-white rounded-xl font-bold text-xs uppercase tracking-wider"
+                className="inline-flex items-center justify-center min-h-[44px] px-6 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-colors"
               >
                 Launch First CBT Mock
               </Link>
@@ -359,7 +354,21 @@ export const DashboardPage: React.FC = () => {
       {/* Modals & Drawers */}
       <FlashMasterModal
         isOpen={flashMasterOpen}
-        onClose={() => setFlashMasterOpen(false)}
+        onClose={() => {
+          setFlashMasterOpen(false);
+          if (user) {
+            getDocs(collection(db, 'users', user.uid, 'weaknessBucket'))
+              .then(snap => {
+                const now = Date.now();
+                const dueCount = snap.docs.filter((d) => {
+                  const next = d.data().nextReviewDate;
+                  return !next || new Date(next).getTime() <= now;
+                }).length;
+                setWeaknessCount(dueCount);
+              })
+              .catch(() => {});
+          }
+        }}
       />
 
       <FormulaVaultDrawer

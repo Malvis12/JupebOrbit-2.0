@@ -20,13 +20,16 @@ import {
   Loader2,
   LayoutDashboard,
   FileQuestion,
-  Sparkles
+  Sparkles,
+  Menu,
+  X
 } from 'lucide-react';
 import { QuestionUploadPage } from './QuestionUploadPage';
 
 export const AdminDashboardPage: React.FC = () => {
   const { userData, isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState<'overview' | 'questions' | 'students' | 'exams'>('overview');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Metrics State
   const [loading, setLoading] = useState(true);
@@ -183,172 +186,187 @@ export const AdminDashboardPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-20">
-      {/* Top Banner */}
-      <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 text-xs font-semibold uppercase tracking-wider mb-2">
-                <Shield className="w-3.5 h-3.5" />
-                <span>Executive Command Center</span>
-              </div>
-              <h1 className="text-2xl font-black text-slate-900 dark:text-white">
-                JUPEB ORBIT Master Administration
-              </h1>
-              <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                Manage curriculum question banks, inspect registered candidates, monitor mock test logs, and configure platform roles.
-              </p>
-            </div>
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col lg:flex-row">
+      {/* Mobile Header with Sidebar Toggle */}
+      <div className="lg:hidden bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(true)}
+            className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200"
+            aria-label="Open admin menu"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+          <Shield className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+          <h1 className="text-base font-black text-slate-900 dark:text-white">
+            Admin Panel
+          </h1>
+        </div>
+        <span className="text-xs px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-medium">
+          {userData?.username || 'Admin'}
+        </span>
+      </div>
 
-            <div className="flex items-center gap-3">
-              <span className="text-xs px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-medium">
-                Admin: <strong className="text-slate-900 dark:text-white">{userData?.username || 'Superadmin'}</strong>
-              </span>
+      {/* Mobile Backdrop */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-slate-950/60 backdrop-blur-sm lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar (Slide-out on Mobile, Sticky on Desktop) */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transform transition-transform duration-200 lg:static lg:translate-x-0 lg:shrink-0 ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="p-5 lg:p-6 lg:sticky lg:top-0">
+          <div className="flex items-center justify-between gap-2.5 mb-6">
+            <div className="flex items-center gap-2.5">
+              <Shield className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0" />
+              <h1 className="text-lg font-black text-slate-900 dark:text-white">
+                Admin Panel
+              </h1>
             </div>
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(false)}
+              className="lg:hidden p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              aria-label="Close admin menu"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
 
-          {/* Navigation Tabs */}
-          <div className="flex items-center gap-2 mt-6 border-b border-slate-200 dark:border-slate-800 -mb-6 pb-2 overflow-x-auto">
+          <nav className="flex flex-col gap-1.5">
             <button
-              onClick={() => setActiveTab('overview')}
-              className={`px-4 py-2.5 text-xs font-bold rounded-xl flex items-center gap-2 transition-all ${
+              onClick={() => { setActiveTab('overview'); setSidebarOpen(false); }}
+              className={`min-h-[44px] px-3.5 py-2.5 text-xs font-bold rounded-xl flex items-center gap-2.5 transition-all w-full ${
                 activeTab === 'overview'
                   ? 'bg-blue-600 text-white shadow-sm'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
               }`}
             >
-              <LayoutDashboard className="w-4 h-4" />
-              Overview & Analytics
+              <LayoutDashboard className="w-4 h-4 shrink-0" />
+              <span>Overview</span>
             </button>
 
             <button
-              onClick={() => setActiveTab('questions')}
-              className={`px-4 py-2.5 text-xs font-bold rounded-xl flex items-center gap-2 transition-all ${
+              onClick={() => { setActiveTab('questions'); setSidebarOpen(false); }}
+              className={`min-h-[44px] px-3.5 py-2.5 text-xs font-bold rounded-xl flex items-center gap-2.5 transition-all w-full ${
                 activeTab === 'questions'
                   ? 'bg-blue-600 text-white shadow-sm'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
               }`}
             >
-              <FileQuestion className="w-4 h-4" />
-              Question Ingestion Studio
+              <FileQuestion className="w-4 h-4 shrink-0" />
+              <span>Questions</span>
             </button>
 
             <button
-              onClick={() => setActiveTab('students')}
-              className={`px-4 py-2.5 text-xs font-bold rounded-xl flex items-center gap-2 transition-all ${
+              onClick={() => { setActiveTab('students'); setSidebarOpen(false); }}
+              className={`min-h-[44px] px-3.5 py-2.5 text-xs font-bold rounded-xl flex items-center gap-2.5 transition-all w-full ${
                 activeTab === 'students'
                   ? 'bg-blue-600 text-white shadow-sm'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
               }`}
             >
-              <Users className="w-4 h-4" />
-              Students & Roles ({students.length})
+              <Users className="w-4 h-4 shrink-0" />
+              <span>Students ({students.length})</span>
             </button>
 
             <button
-              onClick={() => setActiveTab('exams')}
-              className={`px-4 py-2.5 text-xs font-bold rounded-xl flex items-center gap-2 transition-all ${
+              onClick={() => { setActiveTab('exams'); setSidebarOpen(false); }}
+              className={`min-h-[44px] px-3.5 py-2.5 text-xs font-bold rounded-xl flex items-center gap-2.5 transition-all w-full ${
                 activeTab === 'exams'
                   ? 'bg-blue-600 text-white shadow-sm'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
               }`}
             >
-              <Award className="w-4 h-4" />
-              Live CBT Logs
+              <Award className="w-4 h-4 shrink-0" />
+              <span>Exam Logs</span>
             </button>
+          </nav>
+
+          <div className="mt-8 pt-4 border-t border-slate-200 dark:border-slate-800">
+            <p className="text-[11px] text-slate-400 uppercase font-bold tracking-wider">Signed in as</p>
+            <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 mt-1 truncate">
+              {userData?.username || 'Admin'}
+            </p>
           </div>
         </div>
-      </div>
+      </aside>
 
       {/* Main Tab Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="flex-1 min-w-0 px-4 sm:px-6 lg:px-8 py-8 pb-20">
         {/* TAB 1: OVERVIEW & ANALYTICS */}
         {activeTab === 'overview' && (
           <div className="space-y-8">
             {/* Stat Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-bold uppercase text-slate-500">Registered Students</span>
-                  <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950 text-blue-600 flex items-center justify-center">
-                    <Users className="w-4 h-4" />
-                  </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold uppercase text-slate-500">Students</span>
+                  <Users className="w-4 h-4 text-blue-600" />
                 </div>
-                <div className="text-3xl font-black text-slate-900 dark:text-white">
-                  {loading ? <Loader2 className="w-6 h-6 animate-spin text-slate-400" /> : students.length}
+                <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
+                  {loading ? <Loader2 className="w-5 h-5 animate-spin text-slate-400" /> : students.length}
                 </div>
-                <p className="text-xs text-slate-500 mt-1">Candidates on the platform</p>
               </div>
 
-              <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-bold uppercase text-slate-500">Total Questions</span>
-                  <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950 text-emerald-600 flex items-center justify-center">
-                    <BookOpen className="w-4 h-4" />
-                  </div>
+              <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold uppercase text-slate-500">Questions</span>
+                  <BookOpen className="w-4 h-4 text-emerald-600" />
                 </div>
-                <div className="text-3xl font-black text-slate-900 dark:text-white">
-                  {loading ? <Loader2 className="w-6 h-6 animate-spin text-slate-400" /> : totalQuestions}
+                <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
+                  {loading ? <Loader2 className="w-5 h-5 animate-spin text-slate-400" /> : totalQuestions}
                 </div>
-                <p className="text-xs text-slate-500 mt-1">Live questions in bank</p>
               </div>
 
-              <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-bold uppercase text-slate-500">CBT Mocks Completed</span>
-                  <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950 text-amber-600 flex items-center justify-center">
-                    <Award className="w-4 h-4" />
-                  </div>
+              <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold uppercase text-slate-500">Mocks</span>
+                  <Award className="w-4 h-4 text-amber-600" />
                 </div>
-                <div className="text-3xl font-black text-slate-900 dark:text-white">
-                  {loading ? <Loader2 className="w-6 h-6 animate-spin text-slate-400" /> : recentExamLogs.length}
+                <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
+                  {loading ? <Loader2 className="w-5 h-5 animate-spin text-slate-400" /> : recentExamLogs.length}
                 </div>
-                <p className="text-xs text-slate-500 mt-1">Recorded exam simulations</p>
               </div>
 
-              <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-bold uppercase text-slate-500">Avg Candidate Score</span>
-                  <div className="w-8 h-8 rounded-xl bg-purple-50 dark:bg-purple-950 text-purple-600 flex items-center justify-center">
-                    <TrendingUp className="w-4 h-4" />
-                  </div>
+              <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold uppercase text-slate-500">Avg Score</span>
+                  <TrendingUp className="w-4 h-4 text-purple-600" />
                 </div>
-                <div className="text-3xl font-black text-slate-900 dark:text-white">
+                <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
                   {students.length > 0
-                    ? `${(students.reduce((acc, s) => acc + (s.aggregateScore || 0), 0) / students.length).toFixed(1)} / 16`
-                    : '0.0 / 16'}
+                    ? `${(students.reduce((acc, s) => acc + (s.aggregateScore || 0), 0) / students.length).toFixed(1)}/16`
+                    : '0.0/16'}
                 </div>
-                <p className="text-xs text-slate-500 mt-1">16-point scale performance</p>
               </div>
             </div>
 
             {/* Subject Distribution */}
-            <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                  Question Ingestion Coverage by Subject
-                </h3>
-                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-900">
-                  {Object.keys(questionsBySubject).length} Subjects Detected
-                </span>
-              </div>
+            <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-4">
+                Questions by Subject
+              </h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
                 {Array.from(new Set(['physics', 'mathematics', 'chemistry', 'biology', 'economics', 'government', ...Object.keys(questionsBySubject)])).map((subj) => {
                   const count = questionsBySubject[subj] || 0;
                   return (
                     <div
                       key={subj}
-                      className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 text-center transition-all hover:border-blue-500/30"
+                      className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 text-center"
                     >
                       <p className="text-xs font-bold uppercase text-slate-500 tracking-wider truncate">
                         {subj}
                       </p>
                       <p className="text-2xl font-black text-blue-600 dark:text-blue-400 mt-1">
                         {count}
-                      </p>
-                      <p className="text-[10px] text-slate-400 mt-0.5">
-                        {count > 0 ? `${count} live questions` : 'Needs ingestion'}
                       </p>
                     </div>
                   );
@@ -488,12 +506,30 @@ export const AdminDashboardPage: React.FC = () => {
                             <div className="text-xs text-slate-400">{s.email}</div>
                           </td>
                           <td className="px-4 py-3 text-xs">
-                            <div className="font-medium text-slate-700 dark:text-slate-300">
-                              {s.targetCourse || 'Not set'}
-                            </div>
-                            <div className="text-slate-400 text-[11px]">
-                              {s.targetUniversity || 'Pending onboarding'}
-                            </div>
+                            {(() => {
+                              const raw = s as any;
+                              const course = raw.targetCourse || raw.targetDepartment || raw.course || raw.target_course || raw.desiredCourse;
+                              const uni = raw.targetUniversity || raw.targetInstitution || raw.university || raw.target_university || raw.institution;
+                              if (course || uni) {
+                                return (
+                                  <>
+                                    <div className="font-medium text-slate-700 dark:text-slate-300">
+                                      {course || '—'}
+                                    </div>
+                                    <div className="text-slate-400 text-[11px]">
+                                      {uni || '—'}
+                                    </div>
+                                  </>
+                                );
+                              }
+                              return (
+                                <span className="text-slate-400">
+                                  {s.onboardingComplete || (s.combination && s.combination.length > 0)
+                                    ? 'Not specified'
+                                    : 'Pending onboarding'}
+                                </span>
+                              );
+                            })()}
                           </td>
                           <td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-400">
                             {s.combination?.join(', ') || 'Physics, Chemistry, Maths'}

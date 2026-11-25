@@ -27,16 +27,26 @@ export const MathRenderer: React.FC<MathRendererProps> = ({ content, className =
       }
     } else {
       try {
-        // Set content as plain text (not HTML) to avoid interpreting HTML entities
-        containerRef.current.textContent = content;
-        // Use KaTeX's built-in delimiter detection for inline math
-        renderMathInElement(containerRef.current, {
-          delimiters: [
-            { left: "$$", right: "$$", display: true },
-            { left: "$", right: "$", display: false }
-          ],
-          throwOnError: false,
-        });
+        const hasDelimiters = content.includes('$') || content.includes('\\(') || content.includes('\\[');
+        const looksLikeRawLatex = !hasDelimiters && /\\(text|pi|frac|sqrt|times|div|cdot|pm|le|ge|neq|alpha|beta|theta|Delta|sum|int)\b/.test(content);
+
+        if (looksLikeRawLatex) {
+          katex.render(content, containerRef.current, {
+            displayMode: false,
+            throwOnError: false,
+          });
+        } else {
+          // Set content as plain text (not HTML) to avoid interpreting HTML entities
+          containerRef.current.textContent = content;
+          // Use KaTeX's built-in delimiter detection for inline math
+          renderMathInElement(containerRef.current, {
+            delimiters: [
+              { left: "$$", right: "$$", display: true },
+              { left: "$", right: "$", display: false }
+            ],
+            throwOnError: false,
+          });
+        }
       } catch (err) {
         // Fallback to plain text if KaTeX processing fails
         containerRef.current.innerText = content;

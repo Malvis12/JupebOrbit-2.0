@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 import { 
   CheckCircle2, 
   AlertTriangle, 
@@ -100,13 +102,35 @@ const SYLLABUS_MAP: Record<string, TopicStatus[]> = {
 };
 
 export const SyllabusHeatmap: React.FC = () => {
-  const { userData } = useAuth();
+  const { user, userData } = useAuth();
   const combination = userData?.combination || ['Physics', 'Chemistry', 'Mathematics'];
   const [activeSubject, setActiveSubject] = useState<string>(
     combination[0]?.toLowerCase() || 'physics'
   );
+  const [showAllTopics, setShowAllTopics] = useState(false);
+  const [weaknessTopics, setWeaknessTopics] = useState<string[]>([]);
 
-  const topics = SYLLABUS_MAP[activeSubject.toLowerCase()] || SYLLABUS_MAP.physics;
+  useEffect(() => {
+    if (!user) return;
+    getDocs(collection(db, 'users', user.uid, 'weaknessBucket'))
+      .then((snap) => {
+        const list = snap.docs.map((d) => String(d.data().topic || '').toLowerCase());
+        setWeaknessTopics(list);
+      })
+      .catch(() => {});
+  }, [user]);
+
+  const baseSubjectMastery = Math.round((userData?.mastery?.[activeSubject.toLowerCase()] ?? 0) * 100);
+  const rawTopics = SYLLABUS_MAP[activeSubject.toLowerCase()] || SYLLABUS_MAP.physics;
+  const topics = rawTopics.map((t) => {
+    const topicLower = t.name.toLowerCase();
+    const hits = weaknessTopics.filter(
+      (wt) => wt && (topicLower.includes(wt) || wt.includes(topicLower.split(' ')[0]))
+    ).length;
+    const computed = Math.max(0, Math.min(100, baseSubjectMastery - hits * 15));
+    return { ...t, masteryPercentage: computed };
+  });
+  const visibleTopics = showAllTopics ? topics : topics.slice(0, 4);
 
   const getStatusBadge = (score: number) => {
     if (score >= 75) {
@@ -205,12 +229,12 @@ export const SyllabusHeatmap: React.FC = () => {
 
       {/* Topics Heatmap Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-        {topics.map((t) => {
+        {visibleTopics.map((t) => {
           const status = getStatusBadge(t.masteryPercentage);
           return (
             <div
               key={t.name}
-              className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-850/60 border border-slate-200/80 dark:border-slate-800 hover:border-brand-300 dark:hover:border-slate-700 transition-all flex flex-col justify-between group"
+              className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800 hover:border-brand-300 dark:hover:border-slate-700 transition-all flex flex-col justify-between group"
             >
               <div>
                 <div className="flex items-center justify-between gap-2 mb-2">
@@ -253,6 +277,18 @@ export const SyllabusHeatmap: React.FC = () => {
           );
         })}
       </div>
+
+      {topics.length > 4 && (
+        <div className="mt-4 text-center">
+          <button
+            type="button"
+            onClick={() => setShowAllTopics(prev => !prev)}
+            className="text-xs font-bold text-brand-600 dark:text-brand-400 hover:underline"
+          >
+            {showAllTopics ? 'Show fewer topics' : `Show all ${topics.length} topics`}
+          </button>
+        </div>
+      )}
 
     </div>
   );

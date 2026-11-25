@@ -3,8 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#4F46E5" />
     <title>JUPEB Orbit | The Definitive CBT Cockpit</title>
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" href="/logo.png" />
     <link rel="manifest" href="/manifest.json" />
 
     <!-- Google Fonts -->
@@ -18,10 +20,10 @@
       window.$RefreshSig$ = window.$RefreshSig$ || function() { return function(type) { return type; }; };
       window.__vite_plugin_react_preamble_installed__ = true;
       
-      // Auto-redirect if accidentally opened via Live Server (port 5500) or file://
-      if (window.location.protocol === 'file:' || (window.location.port && window.location.port !== '3000')) {
-        console.info('Redirecting to active Vite dev server at port 3000...');
-        window.location.href = 'http://localhost:3000' + window.location.search;
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch(() => {});
+        });
       }
     </script>
   </head>

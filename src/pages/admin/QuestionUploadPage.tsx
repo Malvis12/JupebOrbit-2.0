@@ -17,12 +17,24 @@ import {
   Layout,
   X,
   CheckCircle2,
-  Key,
   Trash2,
-  Sparkles
+  Download,
+  FileSpreadsheet,
+  Edit3,
+  Eye
 } from 'lucide-react';
 import { MathRenderer } from '../../components/common/MathRenderer';
-import { extractQuestionsFromPdfFile } from '../../lib/geminiPdfExtractor';
+import {
+  parseCsvText,
+  autoDetectCsvMapping,
+  mapCsvRowsToQuestions,
+  parseQuestionsJson,
+  generateCsvTemplate,
+  CsvColumnMapping,
+  CsvFieldKey,
+  CSV_FIELD_LABELS,
+  ParsedCsvData
+} from '../../lib/csvQuestionParser';
 
 export const QuestionUploadPage: React.FC = () => {
   const { userData, isAdmin } = useAuth();
@@ -54,17 +66,17 @@ export const QuestionUploadPage: React.FC = () => {
   // Filter state
   const [searchSubject, setSearchSubject] = useState<string>('');
   const [searchYear, setSearchYear] = useState<string>('');
+  const [searchTopic, setSearchTopic] = useState<string>('');
 
-  // PDF Extraction & Staging State
-  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  // CSV / JSON Batch Upload & Staging State
+  const [uploadFiles, setUploadFiles] = useState<File[]>([]);
   const [uploadSubject, setUploadSubject] = useState<string>('physics');
   const [uploadYear, setUploadYear] = useState<string>('2024');
-  const [customApiKey, setCustomApiKey] = useState<string>('');
-  const [extractionProgress, setExtractionProgress] = useState<{
-    running: boolean;
-    step: string;
-    error?: string;
-  }>({ running: false, step: '' });
+  const [parsedCsv, setParsedCsv] = useState<ParsedCsvData | null>(null);
+  const [csvMapping, setCsvMapping] = useState<CsvColumnMapping>({});
+  const [showColumnMapper, setShowColumnMapper] = useState<boolean>(false);
+  const [uploadError, setUploadError] = useState<string>('');
+  const [editingStagedIdx, setEditingStagedIdx] = useState<number | null>(null);
 
   // Staged questions waiting for admin approval before writing to Firestore
   const [stagedQuestions, setStagedQuestions] = useState<Question[]>([]);
@@ -99,10 +111,6 @@ export const QuestionUploadPage: React.FC = () => {
     'accounting'
   ];
   const years = ['2025', '2024', '2023', '2022', '2021', '2020', '2019', '2018'];
-
-  // Effective API key from env or custom input
-  const defaultEnvKey = (import.meta as any).env.VITE_GEMINI_API_KEY || '';
-  const effectiveApiKey = customApiKey.trim() || defaultEnvKey;
 
   // Reset form
   const resetForm = () => {
@@ -177,58 +185,142 @@ export const QuestionUploadPage: React.FC = () => {
     if (searchYear) {
       filtered = filtered.filter(q => q.year === searchYear);
     }
+    if (searchTopic.trim()) {
+      const t = searchTopic.trim().toLowerCase();
+      filtered = filtered.filter(q => (q.syllabusTopic || '').toLowerCase().includes(t));
+    }
     setFilteredQuestions(filtered);
   };
 
-  // Handle PDF file selection
-  const handlePdfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (!file.name.toLowerCase().endsWith('.pdf')) {
-        alert('Please select a valid PDF file.');
-        return;
+  // Bulk delete currently filtered questions
+  const handleBulkDeleteFiltered = async () => {
+    if (filteredQuestions.length === 0) return;
+    if (!window.confirm(`Delete all ${filteredQuestions.length} filtered questions?`)) return;
+
+    setLoading(true);
+    try {
+      const BATCH_SIZE = 500;
+      for (let i = 0; i < filteredQuestions.length; i += BATCH_SIZE) {
+        const chunk = filteredQuestions.slice(i, i + BATCH_SIZE);
+        const batch = writeBatch(db);
+        chunk.forEach((q) => {
+          const docRef = doc(db, 'subjects', q.subject || 'physics', 'years', q.year || '2024', 'questions', q.id);
+          batch.set(docRef, { _deleted: true }, { merge: true });
+        });
+        await batch.commit();
       }
-      setPdfFile(file);
-      setStagedQuestions([]);
-      setCommitStatus('');
+      await loadQuestions();
+    } catch (err) {
+      console.error('Bulk delete error:', err);
+      alert('Failed to bulk delete questions.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Trigger Gemini PDF Extraction
-  const handleExtractFromPdf = async () => {
-    if (!pdfFile) {
-      alert('Please choose a PDF past question file first.');
-      return;
-    }
+  // Handle CSV / JSON batch file selection
+  const handleBatchFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = Array.from(e.target.files || []);
+    if (fileList.length === 0) return;
 
-    if (!effectiveApiKey) {
-      alert('Please provide a Gemini API Key in .env or in the key input box above.');
-      return;
-    }
-
-    setExtractionProgress({ running: true, step: 'Starting extraction process...' });
-    setStagedQuestions([]);
+    setUploadFiles(fileList);
+    setUploadError('');
     setCommitStatus('');
+    setEditingStagedIdx(null);
 
     try {
-      const extracted = await extractQuestionsFromPdfFile(
-        pdfFile,
+      const combinedCsvRows: Record<string, string>[] = [];
+      let firstCsvHeaders: string[] = [];
+      const jsonQuestions: Question[] = [];
+
+      for (const file of fileList) {
+        const text = await file.text();
+        if (file.name.toLowerCase().endsWith('.csv')) {
+          const parsed = parseCsvText(text);
+          if (firstCsvHeaders.length === 0 && parsed.headers.length > 0) {
+            firstCsvHeaders = parsed.headers;
+          }
+          combinedCsvRows.push(...parsed.rows);
+        } else if (file.name.toLowerCase().endsWith('.json')) {
+          const parsedJson = parseQuestionsJson(
+            text,
+            uploadSubject,
+            uploadYear,
+            jsonQuestions.length
+          );
+          jsonQuestions.push(...parsedJson);
+        } else {
+          setUploadError(`Unsupported file type: ${file.name}. Please upload .csv or .json files.`);
+          return;
+        }
+      }
+
+      if (combinedCsvRows.length > 0 && firstCsvHeaders.length > 0) {
+        const csvData: ParsedCsvData = { headers: firstCsvHeaders, rows: combinedCsvRows };
+        const detected = autoDetectCsvMapping(firstCsvHeaders);
+        setParsedCsv(csvData);
+        setCsvMapping(detected);
+        const mapped = mapCsvRowsToQuestions(
+          combinedCsvRows,
+          detected,
+          uploadSubject,
+          uploadYear,
+          jsonQuestions.length
+        );
+        setStagedQuestions([...jsonQuestions, ...mapped]);
+        // Auto-open column mapper if any required field wasn't auto-detected
+        const missingRequired = (Object.keys(CSV_FIELD_LABELS) as CsvFieldKey[]).some(
+          (k) => CSV_FIELD_LABELS[k].required && !detected[k]
+        );
+        setShowColumnMapper(missingRequired);
+      } else {
+        setParsedCsv(null);
+        setCsvMapping({});
+        setShowColumnMapper(false);
+        setStagedQuestions(jsonQuestions);
+      }
+    } catch (err: any) {
+      console.error('File parse error:', err);
+      setUploadError(err?.message || 'Failed to parse uploaded file(s).');
+    }
+  };
+
+  // Re-map CSV rows when admin adjusts column mapping
+  const handleMappingChange = (field: CsvFieldKey, headerName: string) => {
+    const nextMapping: CsvColumnMapping = {
+      ...csvMapping,
+      [field]: headerName || undefined
+    };
+    setCsvMapping(nextMapping);
+    if (parsedCsv) {
+      const mapped = mapCsvRowsToQuestions(
+        parsedCsv.rows,
+        nextMapping,
         uploadSubject,
         uploadYear,
-        effectiveApiKey,
-        (step) => setExtractionProgress(prev => ({ ...prev, step }))
+        0
       );
-
-      setStagedQuestions(extracted);
-      setExtractionProgress({ running: false, step: '' });
-    } catch (err: any) {
-      console.error('Extraction failure:', err);
-      setExtractionProgress({
-        running: false,
-        step: '',
-        error: err?.message || 'Failed to extract questions from PDF. Check API key and format.'
-      });
+      setStagedQuestions(mapped);
     }
+  };
+
+  // Download sample CSV template
+  const handleDownloadTemplate = () => {
+    const csvContent = generateCsvTemplate();
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'jupeb-orbit-questions-template.csv';
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Update a staged question inline
+  const handleUpdateStaged = (index: number, updated: Partial<Question>) => {
+    setStagedQuestions(prev =>
+      prev.map((q, i) => (i === index ? { ...q, ...updated } : q))
+    );
   };
 
   // Commit Staged Questions to Firestore
@@ -258,7 +350,8 @@ export const QuestionUploadPage: React.FC = () => {
 
       setCommitStatus(`Successfully saved ${stagedQuestions.length} questions to Firestore with deterministic IDs!`);
       setStagedQuestions([]);
-      setPdfFile(null);
+      setUploadFiles([]);
+      setParsedCsv(null);
       await loadQuestions();
     } catch (err: any) {
       console.error('Commit error:', err);
@@ -369,7 +462,7 @@ export const QuestionUploadPage: React.FC = () => {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 text-xs font-semibold uppercase tracking-wider mb-2">
-                <span>Gemini 2.5 Multi-Modal Extraction</span>
+                <span>Batch CSV & JSON Ingestion</span>
                 <span>•</span>
                 <span>Deterministic ID Generator</span>
               </div>
@@ -377,7 +470,7 @@ export const QuestionUploadPage: React.FC = () => {
                 JUPEB Past Question Ingestion Studio
               </h1>
               <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                Upload raw past question PDFs directly from your browser. Gemini extracts LaTeX equations, generates 4-option answers, and organizes curriculum topics.
+                Upload CSV or JSON question files in bulk, map columns, preview & edit LaTeX equations inline, and commit directly to Firestore.
               </p>
             </div>
 
@@ -392,27 +485,38 @@ export const QuestionUploadPage: React.FC = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        {/* PDF Extraction Card */}
+        {/* Batch CSV / JSON Upload Card */}
         <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-200 dark:border-slate-800">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 rounded-xl bg-blue-600/10 text-blue-600 flex items-center justify-center font-bold">
-              <Sparkles className="w-5 h-5" />
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-600/10 text-blue-600 flex items-center justify-center font-bold">
+                <FileSpreadsheet className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                  Upload Past Questions (CSV / JSON)
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-500">
+                  Select one or multiple CSV/JSON files. Standard columns are auto-detected.
+                </p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-                Upload Past Question PDF
-              </h2>
-              <p className="text-xs sm:text-sm text-slate-500">
-                Parse questions, LaTeX formulas, answer keys, and explanations automatically.
-              </p>
-            </div>
+
+            <button
+              type="button"
+              onClick={handleDownloadTemplate}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            >
+              <Download className="w-4 h-4 text-blue-600" />
+              Download CSV Template
+            </button>
           </div>
 
-          {/* Configuration Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          {/* Default Subject & Year Configuration */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2">
-                Subject
+                Default Subject (if omitted in file)
               </label>
               <select
                 value={uploadSubject}
@@ -427,7 +531,7 @@ export const QuestionUploadPage: React.FC = () => {
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2">
-                Exam Year
+                Default Exam Year (if omitted in file)
               </label>
               <select
                 value={uploadYear}
@@ -439,82 +543,84 @@ export const QuestionUploadPage: React.FC = () => {
                 ))}
               </select>
             </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2 flex items-center justify-between">
-                <span>Gemini API Key</span>
-                <span className="text-[10px] text-slate-400">
-                  {defaultEnvKey ? '(Loaded from .env)' : '(Key required)'}
-                </span>
-              </label>
-              <div className="relative">
-                <input
-                  type="password"
-                  value={customApiKey}
-                  onChange={(e) => setCustomApiKey(e.target.value)}
-                  placeholder={defaultEnvKey ? 'Using .env key (or paste override)' : 'AIzaSy...'}
-                  className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-mono focus:ring-2 focus:ring-blue-500"
-                />
-                <Key className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-              </div>
-            </div>
           </div>
 
           {/* Drag & Drop File Zone */}
           <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-blue-500 rounded-2xl p-8 text-center transition-all bg-slate-50/50 dark:bg-slate-800/40">
             <input
               type="file"
-              accept=".pdf"
-              onChange={handlePdfChange}
-              id="past-question-pdf"
+              accept=".csv,.json"
+              multiple
+              onChange={handleBatchFileChange}
+              id="past-question-files"
               className="hidden"
             />
-            <label htmlFor="past-question-pdf" className="cursor-pointer block">
+            <label htmlFor="past-question-files" className="cursor-pointer block">
               <FileText className="w-12 h-12 text-blue-500 mx-auto mb-3" />
               <p className="text-base font-semibold text-slate-800 dark:text-slate-200">
-                {pdfFile ? pdfFile.name : 'Click to select or drag and drop a JUPEB past question PDF'}
+                {uploadFiles.length > 0
+                  ? `${uploadFiles.length} file(s) selected: ${uploadFiles.map(f => f.name).join(', ')}`
+                  : 'Click to select or drag and drop CSV / JSON files'}
               </p>
               <p className="text-xs text-slate-500 mt-1">
-                Deterministic ID schema will be applied: <code className="bg-slate-200 dark:bg-slate-700 px-1 py-0.5 rounded text-blue-600 dark:text-blue-400">{uploadSubject.slice(0, 3)}-{uploadYear}-q01</code> ... <code className="bg-slate-200 dark:bg-slate-700 px-1 py-0.5 rounded text-blue-600 dark:text-blue-400">{uploadSubject.slice(0, 3)}-{uploadYear}-q50</code>
+                Deterministic ID schema: <code className="bg-slate-200 dark:bg-slate-700 px-1 py-0.5 rounded text-blue-600 dark:text-blue-400">{uploadSubject.slice(0, 3)}-{uploadYear}-q01</code> ...
               </p>
             </label>
           </div>
 
-          {/* Action Trigger */}
-          <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+          {/* Status & Column Mapper Toggle */}
+          <div className="mt-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="text-xs text-slate-500">
-              {extractionProgress.step && (
-                <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-medium">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>{extractionProgress.step}</span>
-                </div>
-              )}
-              {extractionProgress.error && (
-                <p className="text-red-500 font-medium">⚠️ {extractionProgress.error}</p>
+              {uploadError && (
+                <p className="text-red-500 font-medium">⚠️ {uploadError}</p>
               )}
               {commitStatus && (
                 <p className="text-emerald-600 dark:text-emerald-400 font-medium">✓ {commitStatus}</p>
               )}
             </div>
 
-            <button
-              onClick={handleExtractFromPdf}
-              disabled={!pdfFile || extractionProgress.running}
-              className="w-full sm:w-auto px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              {extractionProgress.running ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Processing PDF...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4" />
-                  Extract Questions with Gemini
-                </>
-              )}
-            </button>
+            {parsedCsv && (
+              <button
+                type="button"
+                onClick={() => setShowColumnMapper(prev => !prev)}
+                className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                {showColumnMapper ? 'Hide Column Mapping' : 'Adjust CSV Column Mapping'}
+              </button>
+            )}
           </div>
+
+          {/* Optional Manual CSV Column Mapping */}
+          {parsedCsv && showColumnMapper && (
+            <div className="mt-6 p-5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-1">
+                CSV Column Mapping
+              </h3>
+              <p className="text-xs text-slate-500 mb-4">
+                Match your CSV headers to the required question fields. Changes update the staged preview immediately.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {(Object.keys(CSV_FIELD_LABELS) as CsvFieldKey[]).map((field) => (
+                  <div key={field}>
+                    <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                      {CSV_FIELD_LABELS[field].label}
+                      {CSV_FIELD_LABELS[field].required && <span className="text-red-500 ml-0.5">*</span>}
+                    </label>
+                    <select
+                      value={csvMapping[field] || ''}
+                      onChange={(e) => handleMappingChange(field, e.target.value)}
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-xs"
+                    >
+                      <option value="">-- Not Mapped --</option>
+                      {parsedCsv.headers.map(h => (
+                        <option key={h} value={h}>{h}</option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Staged Questions Approval Box (Shows after extraction) */}
@@ -545,79 +651,209 @@ export const QuestionUploadPage: React.FC = () => {
             </div>
 
             {/* Staged Question Review List */}
-            <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2">
-              {stagedQuestions.map((q, idx) => (
-                <div
-                  key={q.id}
-                  className="p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 space-y-3"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950 px-2 py-1 rounded">
-                      ID: {q.id}
-                    </span>
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs text-slate-500 font-medium">
-                        Topic: {q.syllabusTopic}
-                      </span>
-                      <button
-                        onClick={() => handleRemoveStaged(idx)}
-                        className="text-red-500 hover:text-red-700 text-xs flex items-center gap-1 font-medium"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" /> Discard
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="text-slate-800 dark:text-slate-200 text-sm font-medium">
-                    <span className="font-bold mr-1">Q{idx + 1}.</span>
-                    <MathRenderer content={q.questionText} />
-                  </div>
-
-                  {/* Options */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
-                    {q.options.map((opt, optIdx) => {
-                      const isCorrect = q.correctAnswerIndex === optIdx;
-                      return (
-                        <div
-                          key={optIdx}
-                          className={`p-2.5 rounded-lg border text-xs flex items-center gap-2 ${
-                            isCorrect
-                              ? 'border-emerald-500/50 bg-emerald-50/50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-200 font-semibold'
-                              : 'border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
-                          }`}
+            <div className="space-y-4 max-h-[700px] overflow-y-auto pr-2">
+              {stagedQuestions.map((q, idx) => {
+                const isEditing = editingStagedIdx === idx;
+                return (
+                  <div
+                    key={`${q.id}-${idx}`}
+                    className="p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 space-y-3"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950 px-2 py-1 rounded">
+                          ID: {q.id}
+                        </span>
+                        <span className="text-xs text-slate-500 font-medium">
+                          {(q.subject || uploadSubject).toUpperCase()} • {q.year || uploadYear}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-slate-500 font-medium">
+                          Topic: {q.syllabusTopic || 'General'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setEditingStagedIdx(isEditing ? null : idx)}
+                          className="text-blue-600 hover:text-blue-700 dark:text-blue-400 text-xs flex items-center gap-1 font-semibold"
                         >
-                          <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${
-                            isCorrect ? 'bg-emerald-600 text-white' : 'bg-slate-200 dark:bg-slate-700'
-                          }`}>
-                            {String.fromCharCode(65 + optIdx)}
-                          </span>
-                          <MathRenderer content={opt} />
-                          {isCorrect && <span className="ml-auto text-[10px] text-emerald-600 font-bold">CORRECT</span>}
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Solution breakdown preview */}
-                  {q.explanation && (
-                    <div className="mt-2 p-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 text-xs space-y-1">
-                      <p><span className="font-bold text-slate-700 dark:text-slate-300">Core Concept:</span> {q.explanation.coreConcept}</p>
-                      {q.explanation.steps && (
-                        <div>
-                          <span className="font-bold text-slate-700 dark:text-slate-300">Solution: </span>
-                          <MathRenderer content={q.explanation.steps} />
-                        </div>
-                      )}
-                      {q.explanation.pitfall && (
-                        <p className="text-amber-600 dark:text-amber-400">
-                          <span className="font-bold">Common Pitfall:</span> {q.explanation.pitfall}
-                        </p>
-                      )}
+                          {isEditing ? (
+                            <>
+                              <Eye className="w-3.5 h-3.5" /> Done Editing
+                            </>
+                          ) : (
+                            <>
+                              <Edit3 className="w-3.5 h-3.5" /> Edit Inline
+                            </>
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveStaged(idx)}
+                          className="text-red-500 hover:text-red-700 text-xs flex items-center gap-1 font-medium"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" /> Discard
+                        </button>
+                      </div>
                     </div>
-                  )}
-                </div>
-              ))}
+
+                    {isEditing ? (
+                      <div className="space-y-4 pt-2 border-t border-slate-200 dark:border-slate-700">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-500 mb-1">Subject</label>
+                            <select
+                              value={q.subject || uploadSubject}
+                              onChange={(e) => handleUpdateStaged(idx, { subject: e.target.value })}
+                              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs"
+                            >
+                              {subjects.map(s => (
+                                <option key={s} value={s}>{s.toUpperCase()}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-500 mb-1">Year</label>
+                            <select
+                              value={q.year || uploadYear}
+                              onChange={(e) => handleUpdateStaged(idx, { year: e.target.value })}
+                              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs"
+                            >
+                              {years.map(y => (
+                                <option key={y} value={y}>{y}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-500 mb-1">Syllabus Topic</label>
+                            <input
+                              type="text"
+                              value={q.syllabusTopic || ''}
+                              onChange={(e) => handleUpdateStaged(idx, { syllabusTopic: e.target.value })}
+                              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-500 mb-1">
+                            Question Text (supports $...$ / $$...$$ LaTeX)
+                          </label>
+                          <textarea
+                            rows={2}
+                            value={q.questionText}
+                            onChange={(e) => handleUpdateStaged(idx, { questionText: e.target.value })}
+                            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-mono"
+                          />
+                          <div className="mt-1.5 p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs">
+                            <span className="text-[10px] uppercase font-bold text-slate-400 mr-2">Preview:</span>
+                            <MathRenderer content={q.questionText} />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {q.options.map((opt, optIdx) => {
+                            const isCorrect = q.correctAnswerIndex === optIdx;
+                            return (
+                              <div key={optIdx} className="space-y-1">
+                                <div className="flex items-center justify-between">
+                                  <label className="text-[11px] font-semibold text-slate-500">
+                                    Option {String.fromCharCode(65 + optIdx)}
+                                  </label>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateStaged(idx, { correctAnswerIndex: optIdx })}
+                                    className={`text-[10px] px-2 py-0.5 rounded font-bold ${
+                                      isCorrect
+                                        ? 'bg-emerald-600 text-white'
+                                        : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                                    }`}
+                                  >
+                                    {isCorrect ? 'CORRECT' : 'Set Correct'}
+                                  </button>
+                                </div>
+                                <input
+                                  type="text"
+                                  value={opt}
+                                  onChange={(e) => {
+                                    const nextOpts = [...q.options];
+                                    nextOpts[optIdx] = e.target.value;
+                                    handleUpdateStaged(idx, { options: nextOpts });
+                                  }}
+                                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-mono"
+                                />
+                                <div className="px-2 py-1 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[11px]">
+                                  <MathRenderer content={opt} />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-500 mb-1">
+                            Explanation (optional)
+                          </label>
+                          <textarea
+                            rows={2}
+                            value={q.explanation?.coreConcept || ''}
+                            onChange={(e) =>
+                              handleUpdateStaged(idx, {
+                                explanation: {
+                                  ...q.explanation,
+                                  coreConcept: e.target.value
+                                }
+                              })
+                            }
+                            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-mono"
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="text-slate-800 dark:text-slate-200 text-sm font-medium">
+                          <span className="font-bold mr-1">Q{idx + 1}.</span>
+                          <MathRenderer content={q.questionText} />
+                        </div>
+
+                        {/* Options */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
+                          {q.options.map((opt, optIdx) => {
+                            const isCorrect = q.correctAnswerIndex === optIdx;
+                            return (
+                              <div
+                                key={optIdx}
+                                className={`p-2.5 rounded-lg border text-xs flex items-center gap-2 ${
+                                  isCorrect
+                                    ? 'border-emerald-500/50 bg-emerald-50/50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-200 font-semibold'
+                                    : 'border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                                }`}
+                              >
+                                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${
+                                  isCorrect ? 'bg-emerald-600 text-white' : 'bg-slate-200 dark:bg-slate-700'
+                                }`}>
+                                  {String.fromCharCode(65 + optIdx)}
+                                </span>
+                                <MathRenderer content={opt} />
+                                {isCorrect && <span className="ml-auto text-[10px] text-emerald-600 font-bold">CORRECT</span>}
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {q.explanation?.coreConcept && (
+                          <div className="text-xs text-slate-600 dark:text-slate-400 pt-1">
+                            <span className="font-semibold">Explanation: </span>
+                            <MathRenderer content={q.explanation.coreConcept} />
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                );
+              })}
             </div>
+
           </div>
         )}
 
@@ -633,15 +869,36 @@ export const QuestionUploadPage: React.FC = () => {
               </p>
             </div>
 
-            <button
-              onClick={() => {
-                resetForm();
-                setIsModalOpen(true);
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="text"
+                value={searchTopic}
+                onChange={(e) => setSearchTopic(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && filterQuestions()}
+                placeholder="Filter by topic..."
+                className="px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs"
+              />
+              {filteredQuestions.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleBulkDeleteFiltered}
+                  disabled={loading}
+                  className="px-3 py-2 rounded-xl bg-red-50 dark:bg-red-950/50 text-red-600 dark:text-red-400 hover:bg-red-100 text-xs font-semibold flex items-center gap-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Delete Filtered ({filteredQuestions.length})
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  resetForm();
+                  setIsModalOpen(true);
               }}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl shadow-sm transition-all"
             >
               + Add Single Question Manually
             </button>
+            </div>
           </div>
 
           {/* Filters */}
