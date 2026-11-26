@@ -311,14 +311,14 @@ export const PracticePage: React.FC = () => {
 
         {/* Topic Filter Bar */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 border-t border-slate-100 dark:border-slate-800/80 flex flex-wrap items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-2">
-            <Filter className="w-3.5 h-3.5 text-slate-400" />
-            <span className="font-bold text-slate-400 uppercase tracking-wider text-[10px]">Filter Topic:</span>
+          <div className="flex items-center gap-2 w-full sm:w-auto min-w-0">
+            <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <span className="font-bold text-slate-400 uppercase tracking-wider text-[10px] shrink-0">Filter Topic:</span>
             
             <select
               value={selectedTopic}
               onChange={(e) => handleSelectTopicFilter(e.target.value)}
-              className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              className="flex-1 sm:flex-initial min-w-0 max-w-full px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500 truncate"
             >
               <option value="all">All Topics ({allQuestions.length} Questions)</option>
               {availableTopics.map((top) => (
